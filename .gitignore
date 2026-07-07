@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-ui/
+.playwright-mcp/
 *.log
 .DS_Store
 coverage/

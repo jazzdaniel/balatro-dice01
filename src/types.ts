@@ -45,6 +45,12 @@ export interface ScoreStep {
 export interface ScoreContext {
   /** The final shown face value per die this turn; null for a blank (dud). */
   readonly faces: readonly (FaceValue | null)[];
+  /**
+   * The full inscribed faces of the die behind each showing face, aligned by
+   * index with `faces`. Lets composition-aware modifiers (e.g. Trips) inspect
+   * what a die holds, not just what it rolled.
+   */
+  readonly dieFaces: readonly (readonly (FaceValue | null)[])[];
   readonly sum: number;
   readonly add: number;
   readonly mult: number;
@@ -90,13 +96,15 @@ export interface TurnState {
 
 // ── Rewards ──────────────────────────────────────────────────────────────────
 
-export type RewardKind = "inscribe" | "overwrite" | "addDie" | "enchant" | "tradeDie";
+export type RewardKind = "card" | "inscribe" | "overwrite" | "addDie" | "enchant" | "tradeDie";
 
 /** An offered reward in the between-rounds reward step. */
 export interface RewardOffer {
   readonly id: string;
   readonly kind: RewardKind;
   readonly description: string;
+  /** For `kind: "card"`: the modifier id this offer grants. */
+  readonly modifierId?: string;
 }
 
 // ── Config (typed TS; the lab's tuning surface) ──────────────────────────────
@@ -109,6 +117,12 @@ export interface Config {
   readonly reroll: {
     /** Rerolls available per turn, beyond the initial roll. */
     readonly budget: number;
+  };
+  readonly cards: {
+    /** Card slots — acquired global modifiers cap. Taking a card past this forces a discard. */
+    readonly slots: number;
+    /** How many card choices the reward step offers each round. */
+    readonly offerCount: number;
   };
   /** Target score for a given 1-based round number. */
   readonly targetForRound: (round: number) => number;
@@ -156,7 +170,12 @@ export type Action =
       readonly faceIndex: number;
       readonly value: FaceValue;
     }
-  | { readonly type: "chooseReward"; readonly rewardId: string }
+  | {
+      readonly type: "chooseReward";
+      readonly rewardId: string;
+      /** Required when all card slots are full: which held card to discard forever. */
+      readonly discard?: string;
+    }
   | { readonly type: "tradeDie"; readonly give: DieId; readonly takeRewardId: string }
   | { readonly type: "nextRound" };
 

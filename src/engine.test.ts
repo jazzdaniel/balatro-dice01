@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { createRng, drawInt } from "./rng.js";
 import { createInitialState, reduce, replay } from "./reducer.js";
-import { getLegalActions, getLastScore } from "./selectors.js";
+import { getLegalActions, getLastScore, getScorePreview } from "./selectors.js";
 import { exampleConfig } from "./example-config.js";
-import type { Action, FaceValue } from "./types.js";
+import { cardRegistry } from "./cards.js";
+import type { Action, Config, FaceValue, GameState } from "./types.js";
+
+/** A config whose modifier pool is the real starter card set, with an easy target. */
+const cardConfig: Config = {
+  ...exampleConfig,
+  modifiers: cardRegistry,
+  targetForRound: () => 5,
+};
+
+/** A one-die turn frozen on a chosen face — lets us score without RNG. */
+function turnShowing(state: GameState, faceIndex: number): GameState {
+  return {
+    ...state,
+    turn: { roll: [{ dieId: "die-0", faceIndex }], rerollsRemaining: 0 },
+  };
+}
 
 /** Inscribe all six faces of a die to the same value. */
 function inscribeAll(dieId: string, value: FaceValue): Action[] {
@@ -68,6 +84,61 @@ describe("reducer", () => {
     state = reduce(state, { type: "roll" });
     state = reduce(state, { type: "lockIn" });
     expect(getLastScore(state)?.total).toBe(0);
+  });
+});
+
+describe("cards (modifier economy)", () => {
+  it("offers cards on round clear and acquires the chosen one", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    for (const action of inscribeAll("die-0", 6)) state = reduce(state, action);
+    // Clear round 1 (target 20): 6 per turn isn't enough in one turn, so loop.
+    while (state.phase === "rolling") {
+      state = reduce(state, { type: "roll" });
+      state = reduce(state, { type: "lockIn" });
+    }
+    expect(state.phase).toBe("reward");
+    expect(state.rewardOffers.length).toBe(3);
+    const offer = state.rewardOffers[0]!;
+    state = reduce(state, { type: "chooseReward", rewardId: offer.id });
+    expect(state.acquiredModifiers).toEqual([offer.modifierId]);
+    expect(state.rewardOffers).toEqual([]);
+  });
+
+  it("caps at the slot count and forces a discard when full", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = {
+      ...state,
+      phase: "reward",
+      acquiredModifiers: ["fiver", "oddball", "underdog"],
+      rewardOffers: [
+        { id: "card:rainbow", kind: "card", modifierId: "rainbow", description: "Rainbow" },
+      ],
+    };
+    // Full slots, no discard specified → refused.
+    expect(() => reduce(state, { type: "chooseReward", rewardId: "card:rainbow" })).toThrow(/full/);
+    // With a discard, the named card is swapped out.
+    const after = reduce(state, { type: "chooseReward", rewardId: "card:rainbow", discard: "fiver" });
+    expect(after.acquiredModifiers).toEqual(["oddball", "underdog", "rainbow"]);
+  });
+
+  it("Fiver makes a single 5 outscore a raw 6", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 5 });
+    state = { ...state, acquiredModifiers: ["fiver"] };
+    // sum 5, mult 1 + 1 = 2 → 10, beating an all-6 die's 6.
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(10);
+  });
+
+  it("Trips reads die composition, not just the roll", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    for (const fi of [0, 1, 2]) {
+      state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: fi, value: 3 });
+    }
+    state = { ...state, acquiredModifiers: ["trips"] };
+    // Die holds three 3s; showing a 3 → sum 3, mult 1 + 4 = 5 → 15.
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(15);
+    // Showing a blank face (index 5) → no trigger → sum 0.
+    expect(getScorePreview(turnShowing(state, 5))?.total).toBe(0);
   });
 });
 

@@ -9,9 +9,10 @@
 import { createRng, drawInt } from "./rng.js";
 import type { RngState } from "./rng.js";
 import { scoreTurn } from "./scoring.js";
-import type { Action, Config, Die, GameState, Match, RollResult } from "./types.js";
+import type { Action, Config, Die, GameState, Match, RewardOffer, RollResult } from "./types.js";
 
 const DICE_STREAM = "dice";
+const REWARDS_STREAM = "rewards";
 
 function blankDie(id: string): Die {
   return {
@@ -52,6 +53,41 @@ function rollDice(rng: RngState, dice: readonly Die[]): { roll: RollResult[]; rn
   return { roll, rng: next };
 }
 
+/**
+ * Draw the round's card offers from the `rewards` stream: a deterministic
+ * partial shuffle of the modifiers not yet held, capped at `cards.offerCount`.
+ */
+function makeCardOffers(
+  rng: RngState,
+  config: Config,
+  acquired: readonly string[],
+): { offers: RewardOffer[]; rng: RngState } {
+  const held = new Set(acquired);
+  const pool = Object.keys(config.modifiers).filter((id) => !held.has(id));
+  const count = Math.min(config.cards.offerCount, pool.length);
+
+  let next = rng;
+  for (let i = 0; i < count; i++) {
+    const draw = drawInt(next, REWARDS_STREAM, pool.length - i);
+    next = draw.rng;
+    const j = i + draw.value;
+    const tmp = pool[i]!;
+    pool[i] = pool[j]!;
+    pool[j] = tmp;
+  }
+
+  const offers = pool.slice(0, count).map((modId): RewardOffer => {
+    const mod = config.modifiers[modId]!;
+    return {
+      id: `card:${modId}`,
+      kind: "card",
+      modifierId: modId,
+      description: `${mod.name} — ${mod.description}`,
+    };
+  });
+  return { offers, rng: next };
+}
+
 export function reduce(state: GameState, action: Action): GameState {
   switch (action.type) {
     case "roll": {
@@ -90,8 +126,8 @@ export function reduce(state: GameState, action: Action): GameState {
         lastScore: breakdown,
       };
       if (roundScore >= state.targetScore) {
-        // TODO: populate rewardOffers from a reward pool once the economy lands.
-        return { ...base, phase: "reward", rewardOffers: [] };
+        const { offers, rng } = makeCardOffers(state.rng, state.config, state.acquiredModifiers);
+        return { ...base, rng, phase: "reward", rewardOffers: offers };
       }
       if (turnsRemaining <= 0) {
         return { ...base, phase: "gameOver" };
@@ -132,9 +168,40 @@ export function reduce(state: GameState, action: Action): GameState {
       };
     }
 
-    case "chooseReward":
+    case "chooseReward": {
+      if (state.phase !== "reward") {
+        throw new Error(`chooseReward is only valid during the reward phase`);
+      }
+      const offer = state.rewardOffers.find((o) => o.id === action.rewardId);
+      if (offer === undefined) throw new Error(`Unknown reward offer: "${action.rewardId}"`);
+      if (offer.kind !== "card" || offer.modifierId === undefined) {
+        throw new Error(`Reward "${action.rewardId}" is not a card offer`);
+      }
+      const modId = offer.modifierId;
+      if (state.config.modifiers[modId] === undefined) {
+        throw new Error(`Unknown modifier: "${modId}"`);
+      }
+      if (state.acquiredModifiers.includes(modId)) {
+        throw new Error(`Card "${modId}" is already held`);
+      }
+
+      const acquired = [...state.acquiredModifiers];
+      if (acquired.length >= state.config.cards.slots) {
+        const { discard } = action;
+        if (discard === undefined) {
+          throw new Error(`All ${state.config.cards.slots} card slots full — specify a card to discard`);
+        }
+        const idx = acquired.indexOf(discard);
+        if (idx === -1) throw new Error(`Cannot discard "${discard}" — not currently held`);
+        acquired.splice(idx, 1);
+      }
+      acquired.push(modId);
+      // Reward taken: clear offers, stay in reward phase until nextRound.
+      return { ...state, acquiredModifiers: acquired, rewardOffers: [] };
+    }
+
     case "tradeDie":
-      throw new Error(`Action "${action.type}" not implemented yet (reward economy is the next build step)`);
+      throw new Error(`Action "${action.type}" not implemented yet (trades are a later build step)`);
   }
 }
 

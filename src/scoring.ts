@@ -38,11 +38,16 @@ export function scoreTurn(state: GameState): ScoreBreakdown {
     const die = diceById.get(r.dieId);
     return die?.faces[r.faceIndex]?.value ?? null;
   });
+  const dieFaces = turn.roll.map((r) => {
+    const die = diceById.get(r.dieId);
+    return die ? die.faces.map((f) => f.value) : [];
+  });
 
   const sum = faces.reduce<number>((acc, v) => acc + (v ?? 0), 0);
 
   let ctx: ScoreContext = {
     faces,
+    dieFaces,
     sum,
     add: 0,
     mult: 1,

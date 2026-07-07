@@ -3,6 +3,7 @@
 export * from "./types.js";
 export { createInitialState, reduce, replay } from "./reducer.js";
 export { scoreTurn } from "./scoring.js";
+export { cardModifiers, cardRegistry } from "./cards.js";
 export { getDice, getLastScore, getScorePreview, getLegalActions } from "./selectors.js";
 export {
   createRng,

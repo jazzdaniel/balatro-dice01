@@ -18,6 +18,8 @@ This document is the project's shared design understanding and its glossary. Whe
 - **Reroll budget** — the limited number of rerolls available in a turn; the main mitigation for landing on blank faces.
 - **Lock in** — end rerolling and score the final faces.
 - **Modifier** (a.k.a. enchantment) — a data-described effect that plugs into the scoring pipeline. Where combination logic and most depth live.
+- **Card** — a modifier held in one of the run's **card slots**. Cards apply globally (to every scoring), independent of which die rolled.
+- **Card slot** — one of a capped number of global modifier slots (starts at 3, tunable). Taking a card past the cap forces you to **discard** one you hold — gone forever, echoing the trade's opportunity-cost pain.
 - **Scoring pipeline** — an ordered hook sequence (`onRoll → onScore → onFinal`, minimal to start) that builds a scoring context and produces an inspectable **breakdown**.
 - **Round** — a unit of the run with a **score target** and a **turn budget**. Scores accumulate toward the target.
 - **Reward step** — between rounds; the player picks one of a few offered options (inscribe, enchant, add die, trade die).
@@ -40,6 +42,9 @@ This document is the project's shared design understanding and its glossary. Whe
 
 ### Scoring
 `score = (sumOfFaces + add) × mult`, where blanks contribute 0, `add` starts at 0, `mult` starts at 1, both moved by modifiers. **Combinations are not built in** — matching effects (e.g. "two faces match → +mult") are acquirable modifiers.
+
+### Cards & slots
+Modifiers are acquired as **cards** into a capped set of **global slots** (3 to start). The reward step offers a few cards; picking one when slots are full forces a **discard** of a held card. Because score is `(sum + add) × mult` and a raw 6 only grows `sum`, the starter pool pushes players *away* from all-6 dice by paying out through `mult` (value-, parity-, diversity-, and repeat-keyed cards). Card values live in the config/registry — tuning, not engine code.
 
 ### Modifiers
 A **small ordered hook pipeline**. Each modifier declares its phase and is effectively a pure function `(context) => context` plus metadata (name, description, source). Ordering is explicit and deterministic (compute sum → additive effects → multiplicative; among peers, fixed order such as acquisition order). Scoring emits a **step-by-step breakdown** ("sum 7, +4 from Twin, ×2 from Lucky Six → 22"). Keep the hook set minimal; add hooks only when an experiment needs one.

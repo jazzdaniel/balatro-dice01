@@ -3,32 +3,43 @@
  * the core loop and get a feel for it. Run with: `npm run play`.
  *
  * What's playable: build your die by inscribing faces, roll / reroll / lock in
- * to score, and clear escalating rounds until you run out of turns.
- * Not yet in this build: adding dice, trades, and scoring modifiers.
+ * to score, collect scoring cards between rounds (3 slots — take one past that
+ * and you discard forever), and push through rising targets until you die.
+ * Not yet in this build: adding dice, trades.
  */
 
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { createInitialState, reduce } from "./src/reducer.js";
+import { cardRegistry } from "./src/cards.js";
 import { getScorePreview } from "./src/selectors.js";
 import type { Config, FaceValue, GameState } from "./src/types.js";
-
-const WIN_ROUND = 8;
 
 /** Forgiving starter config so round 1 is winnable with a single die. */
 const playConfig: Config = {
   dice: { startingCount: 1, cap: 3 },
   reroll: { budget: 2 },
+  cards: { slots: 3, offerCount: 3 },
   targetForRound: (round) => 5 * round,
   turnsPerRound: 4,
   rngStreams: ["dice", "rewards"],
-  modifiers: {},
+  modifiers: cardRegistry,
 };
 
 const rl = readline.createInterface({ input, output });
 
 async function ask(prompt: string): Promise<string> {
   return (await rl.question(prompt)).trim();
+}
+
+/** Prompt for a 1-based menu choice in [1, count]; loops until valid. Returns 0-based. */
+async function askIndex(prompt: string, count: number): Promise<number> {
+  for (;;) {
+    const raw = await ask(prompt);
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1 && n <= count) return n - 1;
+    console.log(`  Please enter a number from 1 to ${count}.`);
+  }
 }
 
 /** A face's value as a display glyph; blank (dud) shows as "·". */
@@ -45,6 +56,15 @@ function renderDie(state: GameState, dieIndex: number): string {
 
 function renderAllDice(state: GameState): string {
   return state.dice.map((_, i) => renderDie(state, i)).join("\n");
+}
+
+/** The player's held scoring cards (global run slots). */
+function renderCards(state: GameState): string {
+  const slots = state.config.cards.slots;
+  const held = state.acquiredModifiers;
+  if (held.length === 0) return `  cards (0/${slots}): —`;
+  const names = held.map((id) => state.config.modifiers[id]?.name ?? id).join(", ");
+  return `  cards (${held.length}/${slots}): ${names}`;
 }
 
 /** Show what each die is currently rolling this turn. */
@@ -99,6 +119,33 @@ async function inscribeOneFace(state: GameState): Promise<GameState> {
   return next;
 }
 
+/** Reward step: pick one offered card. With slots full you MUST discard one — gone forever. */
+async function chooseCard(state: GameState): Promise<GameState> {
+  const offers = state.rewardOffers;
+  if (offers.length === 0) {
+    console.log("  No new cards on offer — you hold them all.");
+    return state;
+  }
+  console.log("\n  Pick a card:");
+  offers.forEach((o, i) => console.log(`    ${i + 1}) ${o.description}`));
+  const offer = offers[await askIndex("  Which card? ", offers.length)]!;
+
+  let discard: string | undefined;
+  const slots = state.config.cards.slots;
+  if (state.acquiredModifiers.length >= slots) {
+    console.log(`\n  Slots full (${slots}/${slots}). Discard one — gone forever:`);
+    state.acquiredModifiers.forEach((id, i) => {
+      console.log(`    ${i + 1}) ${state.config.modifiers[id]?.name ?? id}`);
+    });
+    discard = state.acquiredModifiers[await askIndex("  Discard which? ", state.acquiredModifiers.length)];
+  }
+
+  const next = reduce(state, { type: "chooseReward", rewardId: offer.id, discard });
+  const took = offer.modifierId ? state.config.modifiers[offer.modifierId]?.name : offer.id;
+  console.log(`  Took ${took}.${discard ? ` Discarded ${state.config.modifiers[discard]?.name}.` : ""}`);
+  return next;
+}
+
 /** Ask which dice to HOLD when rerolling; returns their ids. */
 async function askHeld(state: GameState): Promise<string[]> {
   if (state.dice.length === 1) return []; // nothing to hold with one die
@@ -121,8 +168,9 @@ async function playTurn(state: GameState): Promise<GameState> {
   // Roll → reroll loop → lock in.
   for (;;) {
     console.log(renderRoll(s));
-    const preview = getScorePreview(s)?.total ?? 0;
-    console.log(`  this roll scores: ${preview}`);
+    const bd = getScorePreview(s);
+    const detail = bd ? `sum ${bd.sum}${bd.add ? ` +${bd.add}` : ""} × mult ${bd.mult}` : "";
+    console.log(`  this roll scores: ${bd?.total ?? 0}${detail ? `  (${detail})` : ""}`);
     const rerolls = s.turn?.rerollsRemaining ?? 0;
 
     if (rerolls <= 0) {
@@ -152,6 +200,7 @@ async function main(): Promise<void> {
     for (;;) {
       console.log(header(state));
       console.log(renderAllDice(state));
+      console.log(renderCards(state));
 
       if (state.phase === "rolling") {
         state = await playTurn(state);
@@ -162,12 +211,9 @@ async function main(): Promise<void> {
 
       if (state.phase === "reward") {
         console.log(`\n✅  Round ${state.round} cleared!`);
-        if (state.round >= WIN_ROUND) {
-          console.log(`\n🏆  You cleared round ${WIN_ROUND}. You win! Final die:`);
-          console.log(renderDie(state, 0));
-          break;
-        }
-        console.log("Reward — inscribe another face:");
+        console.log("Reward — take a card:");
+        state = await chooseCard(state);
+        console.log("\nAnd inscribe another face:");
         state = await inscribeOneFace(state);
         state = reduce(state, { type: "nextRound" });
         console.log(`\nOn to round ${state.round} (target ${state.targetScore}).`);
@@ -175,8 +221,9 @@ async function main(): Promise<void> {
 
       if (state.phase === "gameOver") {
         console.log(`\n💀  Out of turns on round ${state.round}. You needed ${state.targetScore}, had ${state.roundScore}.`);
-        console.log("Final die:");
+        console.log(`You made it to round ${state.round}. Final die:`);
         console.log(renderDie(state, 0));
+        console.log(renderCards(state));
         break;
       }
     }

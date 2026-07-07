@@ -55,6 +55,7 @@ const twin: Modifier = {
 export const exampleConfig: Config = {
   dice: { startingCount: 1, cap: 3 },
   reroll: { budget: 2 },
+  cards: { slots: 3, offerCount: 3 },
   targetForRound: (round) => 20 * round,
   turnsPerRound: 3,
   rngStreams: ["dice", "rewards"],

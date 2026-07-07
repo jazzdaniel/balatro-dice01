@@ -117,6 +117,21 @@ export function reduce(state: GameState, action: Action): GameState {
       return { ...state, dice };
     }
 
+    case "nextRound": {
+      if (state.phase !== "reward") throw new Error("nextRound is only valid during the reward phase");
+      const round = state.round + 1;
+      return {
+        ...state,
+        round,
+        targetScore: state.config.targetForRound(round),
+        turnsRemaining: state.config.turnsPerRound,
+        roundScore: 0,
+        phase: "rolling",
+        turn: null,
+        rewardOffers: [],
+      };
+    }
+
     case "chooseReward":
     case "tradeDie":
       throw new Error(`Action "${action.type}" not implemented yet (reward economy is the next build step)`);

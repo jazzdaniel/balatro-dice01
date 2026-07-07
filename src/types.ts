@@ -157,7 +157,8 @@ export type Action =
       readonly value: FaceValue;
     }
   | { readonly type: "chooseReward"; readonly rewardId: string }
-  | { readonly type: "tradeDie"; readonly give: DieId; readonly takeRewardId: string };
+  | { readonly type: "tradeDie"; readonly give: DieId; readonly takeRewardId: string }
+  | { readonly type: "nextRound" };
 
 /** A fully replayable match. Feed these three in, get identical state out. */
 export interface Match {

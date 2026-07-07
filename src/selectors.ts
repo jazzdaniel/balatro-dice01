@@ -31,7 +31,7 @@ export function getLegalActions(state: GameState): Action["type"][] {
     }
   }
   if (state.phase === "reward") {
-    legal.push("chooseReward", "tradeDie");
+    legal.push("chooseReward", "tradeDie", "nextRound");
   }
   if (state.phase !== "gameOver") legal.push("inscribeFace");
   return legal;

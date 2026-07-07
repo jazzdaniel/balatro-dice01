@@ -16,6 +16,7 @@
     "dist"
   ],
   "scripts": {
+    "play": "tsx play.ts",
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -30,6 +31,7 @@
   "license": "MIT",
   "devDependencies": {
     "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^3.0.5"
   }

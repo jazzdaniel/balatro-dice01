@@ -125,6 +125,56 @@ function renderInscribeRow(): string {
   return `<div class="inscribe-section">${note}${dice}</div>`;
 }
 
+/**
+ * A depleting resource shown as a row of pips: `remaining` live (glowing) pips
+ * out of `total`, the rest spent (red). The box escalates to a "warn" then a
+ * "danger" state as it runs low, making the risk visible. Shared by rolls-left
+ * and rerolls so both resources read the same way.
+ */
+function renderPipStat(
+  label: string,
+  total: number,
+  remaining: number,
+  extraClass: string,
+  warnAt: number,
+  dangerAt: number,
+): string {
+  const danger = remaining <= dangerAt;
+  const warn = !danger && remaining <= warnAt;
+  const pips = Array.from({ length: total }, (_, i) =>
+    `<span class="pip-dot ${i < remaining ? "live" : "spent"}"></span>`,
+  ).join("");
+  return `
+    <div class="stat pips ${extraClass}${danger ? " danger" : ""}${warn ? " warn" : ""}">
+      <div class="pip-row">${pips}</div>
+      <div class="stat-label">${label} ${remaining}/${total}</div>
+    </div>`;
+}
+
+// Rolls left: last roll of the round is the danger moment (danger at 1, warn at 2).
+function renderRollsLeft(): string {
+  return renderPipStat("ROLLS LEFT", config.turnsPerRound, state.turnsRemaining, "rolls-left", 2, 1);
+}
+
+// Rerolls: full between turns; spending them all this turn is the danger (danger at 0, warn at 1).
+function renderRerolls(): string {
+  const budget = config.reroll.budget;
+  const remaining = state.turn ? state.turn.rerollsRemaining : budget;
+  return renderPipStat("REROLLS", budget, remaining, "rerolls", 1, 0);
+}
+
+function renderStatBar(): string {
+  return `
+    <header class="statbar">
+      <div class="stat">
+        <div class="stat-num">${state.round}</div>
+        <div class="stat-label">ROUND</div>
+      </div>
+      ${renderRollsLeft()}
+      ${renderRerolls()}
+    </header>`;
+}
+
 function renderActions(): string {
   const midTurn = state.turn !== null;
   const rerolls = state.turn?.rerollsRemaining ?? 0;
@@ -132,15 +182,13 @@ function renderActions(): string {
     ? `<button class="btn score" data-act="lockin">Score Hand</button>`
     : `<button class="btn score" data-act="roll">Roll Dice</button>`;
   const reroll = `<button class="btn reroll" data-act="reroll" ${midTurn && rerolls > 0 ? "" : "disabled"}>Reroll</button>`;
-  const rerollNote = midTurn
-    ? `${rerolls} Reroll${rerolls === 1 ? "" : "s"} Remaining <span class="muted">• Cost: $0</span>`
-    : `Roll to start the turn`;
+  const hint = midTurn ? `Score the hand, or reroll while you can` : `Roll to start the turn`;
   return `
     <div class="actions">
       <div class="buttons">${primary}${reroll}</div>
       <div class="statusline">
         <span class="deck">RED DECK · ${state.dice.length}/${state.dice.length} DICE</span>
-        <span>${rerollNote}</span>
+        <span class="muted">${hint}</span>
       </div>
     </div>`;
 }
@@ -273,13 +321,7 @@ function render(): void {
         <div class="mod-slots">${renderModSlots()}</div>
       </aside>
       <main class="board">
-        <header class="topbar">
-          <div class="round">Round <b>${state.round}</b> <span class="muted">· play until you fall</span></div>
-          <div class="rolls">
-            <div class="rolls-num">${state.turnsRemaining}</div>
-            <div class="rolls-label">ROLLS LEFT</div>
-          </div>
-        </header>
+        ${renderStatBar()}
         ${renderScorePanel()}
         <section class="dice-area">
           ${state.dice.map((d, i) => renderDie(d, i)).join("")}
@@ -307,9 +349,13 @@ app.addEventListener("click", (ev) => {
       break;
     case "reroll":
       dispatch({ type: "reroll", held: [] });
+      // Re-render just replaced the box; flash the fresh one to signal the burn.
+      document.querySelector(".rerolls")?.classList.add("shake");
       break;
     case "lockin":
       dispatch({ type: "lockIn" });
+      // If the round continues, flash the rolls-left box to mark the spent roll.
+      document.querySelector(".rolls-left")?.classList.add("shake");
       break;
     case "face": {
       if (pendingInscribes <= 0) break; // inscribing only at setup / between rounds

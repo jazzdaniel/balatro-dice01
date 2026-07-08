@@ -93,15 +93,47 @@ body {
   gap: 16px;
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.08), 0 8px 20px rgba(0, 0, 0, 0.4);
 }
-.topbar { display: flex; justify-content: space-between; align-items: center; }
-.round { font-size: 20px; font-weight: 700; }
-.round b { color: var(--gold); }
-.rolls {
+.statbar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat {
   background: var(--ink); border: 2px solid var(--line); border-radius: 12px;
-  padding: 6px 16px; text-align: center; min-width: 90px;
+  padding: 10px 14px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 68px;
 }
-.rolls-num { font-size: 28px; font-weight: 800; color: var(--gold); line-height: 1; }
-.rolls-label { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+.stat-num { font-size: 28px; font-weight: 800; color: var(--gold); line-height: 1; }
+.stat-label { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); margin-top: 4px; }
+
+/* depleting resources as pips (rolls-left, rerolls) */
+.pip-row { display: flex; gap: 8px; height: 28px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.pip-dot { width: 16px; height: 16px; border-radius: 50%; transition: all 0.2s ease; }
+.pip-dot.live {
+  background: radial-gradient(circle at 35% 30%, #ffe38f, #f2c14e);
+  box-shadow: 0 0 8px rgba(242, 193, 78, 0.6), inset 0 -2px 2px rgba(0,0,0,0.25);
+}
+.pip-dot.spent {
+  background: #2a1418; border: 2px solid var(--mult);
+  box-shadow: 0 0 8px rgba(224, 80, 58, 0.55);
+}
+.stat.pips.warn { border-color: #d89a3a; box-shadow: 0 0 10px rgba(216, 154, 58, 0.35); }
+.stat.pips.warn .stat-label { color: #e6b25c; }
+.stat.pips.danger {
+  border-color: var(--mult);
+  box-shadow: 0 0 14px rgba(224, 80, 58, 0.6);
+  animation: danger-pulse 1.1s ease-in-out infinite;
+}
+.stat.pips.danger .stat-label { color: var(--mult); font-weight: 800; }
+.stat.pips.shake { animation: shake 0.32s ease; }
+@keyframes danger-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(224, 80, 58, 0.45); }
+  50% { box-shadow: 0 0 20px rgba(224, 80, 58, 0.85); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
 
 /* score panel */
 .scorepanel { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

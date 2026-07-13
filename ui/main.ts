@@ -178,14 +178,20 @@ function renderStatBar(): string {
 function renderActions(): string {
   const midTurn = state.turn !== null;
   const rerolls = state.turn?.rerollsRemaining ?? 0;
-  const primary = midTurn
-    ? `<button class="btn score" data-act="lockin">Score Hand</button>`
-    : `<button class="btn score" data-act="roll">Roll Dice</button>`;
-  const reroll = `<button class="btn reroll" data-act="reroll" ${midTurn && rerolls > 0 ? "" : "disabled"}>Reroll</button>`;
-  const hint = midTurn ? `Score the hand, or reroll while you can` : `Roll to start the turn`;
+  // Score Hand is always its own button; Roll and Reroll always share the other
+  // button (same slot, same style) — "Roll Dice" to start a turn, "Reroll" during it.
+  const score = `<button class="btn score" data-act="lockin" ${midTurn ? "" : "disabled"}>Score Hand</button>`;
+  const rollReroll = midTurn
+    ? `<button class="btn reroll" data-act="reroll" ${rerolls > 0 ? "" : "disabled"}>Reroll</button>`
+    : `<button class="btn reroll" data-act="roll">Roll Dice</button>`;
+  const hint = midTurn
+    ? rerolls > 0
+      ? `Reroll, or score the hand`
+      : `Out of rerolls — scoring…`
+    : `Roll to start the turn`;
   return `
     <div class="actions">
-      <div class="buttons">${primary}${reroll}</div>
+      <div class="buttons">${score}${rollReroll}</div>
       <div class="statusline">
         <span class="deck">RED DECK · ${state.dice.length}/${state.dice.length} DICE</span>
         <span class="muted">${hint}</span>
@@ -351,6 +357,11 @@ app.addEventListener("click", (ev) => {
       dispatch({ type: "reroll", held: [] });
       // Re-render just replaced the box; flash the fresh one to signal the burn.
       document.querySelector(".rerolls")?.classList.add("shake");
+      // No rerolls left means there's nothing left to decide — after a beat so
+      // the final roll is visible, score the hand automatically.
+      if (state.turn && state.turn.rerollsRemaining <= 0) {
+        window.setTimeout(() => dispatch({ type: "lockIn" }), 700);
+      }
       break;
     case "lockin":
       dispatch({ type: "lockIn" });

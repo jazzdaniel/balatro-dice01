@@ -208,6 +208,8 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-size: 68px; font-weight: 800; color: rgba(43, 47, 60, 0.28);
 }
+/* In cube mode the resting cube is the visual, so skip the flat "?" overlay. */
+.bigdie.pristine .bigdie-face.cube-mode::after { content: none; }
 .bigdice-caption {
   font-size: 12px; letter-spacing: 2px; font-weight: 700;
   color: var(--gold); text-transform: uppercase;
@@ -226,6 +228,70 @@ body {
   100% { transform: scale(1); }
 }
 .bigdie.settle { animation: bigdie-settle 0.24s ease-out; }
+
+/* ── Roll animation: "cube-3d" variant ─────────────────────────────────────── */
+/* A real 3D cube spins inside the die face. The face becomes the 3D scene; the
+   cube's six sides carry the same die gradient so it reads as one object. */
+/* While the 3D cube is on, drop the flat die's background + bevel so only the
+   cube shows (otherwise the die's own square sits behind it like a border). */
+.bigdie.cube-active {
+  background: none;
+  box-shadow: none;
+}
+.bigdie-face.cube-mode {
+  position: relative;
+  perspective: 620px;
+}
+.dice-cube {
+  --cube: 104px;
+  --half: 52px;
+  /* Which side faces us at rest; set per-roll by cube3dRoll to the landed face. */
+  --face-to-front: rotateY(0deg);
+  position: absolute; inset: 0; margin: auto;
+  width: var(--cube); height: var(--cube);
+  transform-style: preserve-3d;
+  /* Resting pose: bring the rolled face forward, then a slight screen-space tilt
+     (applied outer) so the settled die reads as 3D, not flat. */
+  transform: translateZ(calc(var(--half) * -1)) rotateX(-14deg) rotateY(16deg) var(--face-to-front);
+}
+.cube-face {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #f7e6a8 0%, #eecf7f 100%);
+  box-shadow:
+    inset 4px 4px 0 rgba(255, 255, 255, 0.55),
+    inset -5px -5px 0 rgba(120, 88, 24, 0.4);
+  backface-visibility: hidden;
+}
+.cube-face .pip-grid { width: 100%; height: 100%; }
+.cube-face .bigpip { width: 20px; height: 20px; }
+.cf-front  { transform: rotateY(0deg)    translateZ(var(--half)); }
+.cf-back   { transform: rotateY(180deg)  translateZ(var(--half)); }
+.cf-right  { transform: rotateY(90deg)   translateZ(var(--half)); }
+.cf-left   { transform: rotateY(-90deg)  translateZ(var(--half)); }
+.cf-top    { transform: rotateX(90deg)   translateZ(var(--half)); }
+.cf-bottom { transform: rotateX(-90deg)  translateZ(var(--half)); }
+@keyframes cube-tumble {
+  0%   { transform: translateZ(calc(var(--half) * -1)) rotateX(0deg)   rotateY(0deg); }
+  100% { transform: translateZ(calc(var(--half) * -1)) rotateX(720deg) rotateY(900deg); }
+}
+.dice-cube.rolling { animation: cube-tumble 0.95s cubic-bezier(0.25, 0.7, 0.25, 1) forwards; }
+/* On settle we transition from the tumble's end pose to the resting pose above,
+   which now points the landed face (--face-to-front) at the camera. */
+.dice-cube.settled { transition: transform 0.28s ease-out; }
+
+/* ── Dev toggle: A/B the roll animations ──────────────────────────────────── */
+.anim-toggle {
+  position: fixed; top: 12px; right: 12px; z-index: 50;
+  padding: 6px 12px;
+  font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  color: var(--text); background: #3a4570;
+  border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px;
+  cursor: pointer; opacity: 0.85;
+}
+.anim-toggle:hover { opacity: 1; transform: translateY(-1px); }
 
 /* ── Secondary die (faces breakdown, bottom-left of sidebar) ─ */
 .dice-secondary {

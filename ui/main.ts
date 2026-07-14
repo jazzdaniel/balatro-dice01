@@ -67,15 +67,21 @@ function dispatch(action: Action): void {
 }
 
 // ── Big-die roll animation ────────────────────────────────────────────────────
-// The primary dice tumble by flickering through random pip faces (with a shake)
-// for a short spell, then settle on the value the engine already committed to
-// state (read back from each die's data-value). Purely cosmetic — it runs after
-// dispatch, over the already-rendered final result.
+// The primary dice animate after dispatch, purely cosmetically, over the
+// already-rendered final result. Each variant is a self-contained function with
+// the signature (dice) => void; whichever is active is chosen by `activeAnim`
+// and can be swapped live via the on-screen toggle (data-act="cycle-anim").
+//
+// Contract every variant honours: it may mutate .bigdie / .bigdie-face freely,
+// but must end with each die showing renderPips(data-value) — the engine has
+// already committed the result; the animation is decoration over it. No cleanup
+// is needed because the next render() rebuilds the whole board from scratch.
+type RollAnimation = (dice: HTMLElement[]) => void;
 let rollTimer: ReturnType<typeof setInterval> | null = null;
-function playRollAnimation(): void {
-  if (rollTimer !== null) clearInterval(rollTimer);
-  const dice = Array.from(document.querySelectorAll<HTMLElement>(".bigdie"));
-  if (dice.length === 0) return;
+
+// Variant "pip-flicker": the original. Dice flicker through random faces (with a
+// shake) for a short spell, then settle on the committed value.
+function pipFlickerRoll(dice: HTMLElement[]): void {
   dice.forEach((d) => d.classList.add("rolling"));
   const step = 70;
   const duration = 640;
@@ -103,6 +109,91 @@ function playRollAnimation(): void {
       }
     }
   }, step);
+}
+
+// The cube's six sides, in die face-index order (0..5). This is the physical
+// layout the CSS positions; the rolled index selects which one faces us at rest.
+const CUBE_SIDES = ["cf-front", "cf-back", "cf-right", "cf-left", "cf-top", "cf-bottom"];
+// Rotation that brings each side to face the camera — the inverse of the CSS
+// transform that placed it. Index-aligned with CUBE_SIDES. A slight resting tilt
+// is layered on in CSS so the settled die still reads as 3D, not flat.
+const SIDE_TO_FRONT = [
+  "rotateY(0deg)", // front
+  "rotateY(-180deg)", // back
+  "rotateY(-90deg)", // right
+  "rotateY(90deg)", // left
+  "rotateX(90deg)", // top
+  "rotateX(-90deg)", // bottom
+];
+
+/** Parse "5,,3,,," → [5, null, 3, null, null, null] (blanks are empty entries). */
+function parseFaces(raw: string): (number | null)[] {
+  const vals = raw.split(",").map((s) => (s === "" ? null : Number(s)));
+  return Array.from({ length: 6 }, (_, i) => vals[i] ?? null);
+}
+
+// The six sides of a die's cube: each shows that face's actual inscribed value
+// (or blank), so the cube is a faithful 3D copy of the die.
+function cubeSidesHTML(faces: (number | null)[]): string {
+  return CUBE_SIDES.map(
+    (cls, i) => `<div class="cube-face ${cls}">${renderPips(faces[i] ?? null)}</div>`,
+  ).join("");
+}
+
+/** A cube already at rest, showing side `rolled` (default front) toward camera.
+ *  Used by the static render so the pre-/post-roll die matches the rolling one. */
+function cubeSettledMarkup(faces: (number | null)[], rolled: number): string {
+  const front = SIDE_TO_FRONT[rolled] ?? SIDE_TO_FRONT[0]!;
+  return `<div class="dice-cube settled" style="--face-to-front:${front}">${cubeSidesHTML(faces)}</div>`;
+}
+
+/** A cube in its tumbling state, for the roll animation to spin. */
+function cubeMarkup(faces: (number | null)[]): string {
+  return `<div class="dice-cube rolling">${cubeSidesHTML(faces)}</div>`;
+}
+
+// Variant "cube-3d": a real CSS 3D cube — a faithful copy of the die, each side
+// carrying that face's real value (or blankness) — tumbles through space, then
+// settles by rotating the face that actually landed toward the camera.
+// (Adapted from the React FACE_TRANSFORMS prototype.)
+function cube3dRoll(dice: HTMLElement[]): void {
+  const duration = 950;
+  for (const d of dice) {
+    const faceEl = d.querySelector<HTMLElement>(".bigdie-face");
+    if (!faceEl) continue;
+    // Hide the flat die's own background/bevel so only the 3D cube is visible.
+    d.classList.add("cube-active");
+    faceEl.classList.add("cube-mode");
+    faceEl.innerHTML = cubeMarkup(parseFaces(d.dataset.faces ?? ""));
+  }
+  rollTimer = setTimeout(() => {
+    rollTimer = null;
+    for (const d of dice) {
+      const cube = d.querySelector<HTMLElement>(".dice-cube");
+      if (!cube) continue;
+      const rolled = d.dataset.rolled ? Number(d.dataset.rolled) : 0;
+      cube.style.setProperty("--face-to-front", SIDE_TO_FRONT[rolled] ?? SIDE_TO_FRONT[0]!);
+      cube.classList.remove("rolling");
+      cube.classList.add("settled");
+    }
+  }, duration);
+}
+
+const ROLL_ANIMATIONS: Record<string, RollAnimation> = {
+  "pip-flicker": pipFlickerRoll,
+  "cube-3d": cube3dRoll,
+};
+const ANIM_NAMES = Object.keys(ROLL_ANIMATIONS);
+const DEFAULT_ANIM = ANIM_NAMES[0] ?? "pip-flicker";
+const savedAnim = localStorage.getItem("rollAnim");
+let activeAnim: string = savedAnim && ROLL_ANIMATIONS[savedAnim] ? savedAnim : DEFAULT_ANIM;
+
+function playRollAnimation(): void {
+  if (rollTimer !== null) clearInterval(rollTimer);
+  rollTimer = null;
+  const dice = Array.from(document.querySelectorAll<HTMLElement>(".bigdie"));
+  if (dice.length === 0) return;
+  (ROLL_ANIMATIONS[activeAnim] ?? ROLL_ANIMATIONS[DEFAULT_ANIM]!)(dice);
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────────
@@ -205,13 +296,23 @@ function renderBigDie(die: Die, idx: number): string {
   const rerolls = state.turn?.rerollsRemaining ?? 0;
   const act = !midTurn ? "roll" : rerolls > 0 ? "reroll" : "";
   const attrs = act ? `data-act="${act}"` : "disabled";
-  const cls = `bigdie${value == null ? " blank" : ""}${!midTurn ? " pristine" : ""}`;
+  // In cube-3d mode the resting die is itself a 3D cube, so the pre-roll ("click
+  // to roll") and between-roll states match the tumbling animation. The flat pip
+  // face is used for every other variant.
+  const cube = activeAnim === "cube-3d";
+  const cls = `bigdie${value == null ? " blank" : ""}${!midTurn ? " pristine" : ""}${cube ? " cube-active" : ""}`;
   // The roll animation tumbles through this die's own faces, so blanks are
   // encoded as empty entries (e.g. "4,,,,," is one inscribed 4 and five blanks).
+  // data-rolled is the index (0..5) of the face that landed, so the cube-3d
+  // variant can rotate that exact physical face toward the camera on settle.
   const faces = die.faces.map((f) => f.value ?? "").join(",");
+  const faceVals = die.faces.map((f) => f.value ?? null);
+  const faceInner = cube
+    ? cubeSettledMarkup(faceVals, rolledFace ?? 0)
+    : renderPips(value);
   return `
-    <button class="${cls}" ${attrs} data-value="${value ?? ""}" data-faces="${faces}" aria-label="Die ${idx + 1}">
-      <div class="bigdie-face">${renderPips(value)}</div>
+    <button class="${cls}" ${attrs} data-value="${value ?? ""}" data-faces="${faces}" data-rolled="${rolledFace ?? ""}" aria-label="Die ${idx + 1}">
+      <div class="bigdie-face${cube ? " cube-mode" : ""}">${faceInner}</div>
     </button>`;
 }
 
@@ -453,8 +554,15 @@ function renderGameOverOverlay(): string {
     </div>`;
 }
 
+/** Dev-only floating chip to A/B the roll animations. Cycles ROLL_ANIMATIONS. */
+function renderAnimToggle(): string {
+  return `<button class="anim-toggle" data-act="cycle-anim"
+            title="Toggle roll animation">🎲 ${activeAnim}</button>`;
+}
+
 function render(): void {
   app.innerHTML = `
+    ${renderAnimToggle()}
     <div class="game">
       <aside class="sidebar">
         <div class="logo">
@@ -490,6 +598,14 @@ app.addEventListener("click", (ev) => {
   if (!el) return;
 
   switch (act) {
+    case "cycle-anim": {
+      const i = ANIM_NAMES.indexOf(activeAnim);
+      activeAnim = ANIM_NAMES[(i + 1) % ANIM_NAMES.length] ?? DEFAULT_ANIM;
+      localStorage.setItem("rollAnim", activeAnim);
+      render();
+      playRollAnimation(); // preview the newly-selected variant immediately
+      break;
+    }
     case "roll":
       dispatch({ type: "roll" });
       playRollAnimation();

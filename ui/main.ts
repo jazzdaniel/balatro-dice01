@@ -83,8 +83,11 @@ function playRollAnimation(): void {
   rollTimer = setInterval(() => {
     elapsed += step;
     for (const d of dice) {
+      // Flash a random one of this die's own faces (blanks included).
+      const faces = (d.dataset.faces ?? "").split(",");
+      const pick = faces[Math.floor(Math.random() * faces.length)];
       const face = d.querySelector(".bigdie-face");
-      if (face) face.innerHTML = renderPips(1 + Math.floor(Math.random() * 6));
+      if (face) face.innerHTML = renderPips(pick ? Number(pick) : null);
     }
     if (elapsed >= duration) {
       clearInterval(rollTimer!);
@@ -203,8 +206,11 @@ function renderBigDie(die: Die, idx: number): string {
   const act = !midTurn ? "roll" : rerolls > 0 ? "reroll" : "";
   const attrs = act ? `data-act="${act}"` : "disabled";
   const cls = `bigdie${value == null ? " blank" : ""}${!midTurn ? " pristine" : ""}`;
+  // The roll animation tumbles through this die's own faces, so blanks are
+  // encoded as empty entries (e.g. "4,,,,," is one inscribed 4 and five blanks).
+  const faces = die.faces.map((f) => f.value ?? "").join(",");
   return `
-    <button class="${cls}" ${attrs} data-value="${value ?? ""}" aria-label="Die ${idx + 1}">
+    <button class="${cls}" ${attrs} data-value="${value ?? ""}" data-faces="${faces}" aria-label="Die ${idx + 1}">
       <div class="bigdie-face">${renderPips(value)}</div>
     </button>`;
 }
@@ -464,8 +470,8 @@ function render(): void {
       </aside>
       <main class="board">
         ${renderStatBar()}
-        ${renderScorePanel()}
         ${renderBigDice()}
+        ${renderScorePanel()}
         ${renderActions()}
       </main>
     </div>

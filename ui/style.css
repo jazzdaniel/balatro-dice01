@@ -166,9 +166,11 @@ body {
 /* dice */
 /* ── Primary die (large, pixel-art, animated) ─────────────── */
 .bigdice-area {
-  flex: 1;
+  /* Sits right under the stat bar, hugging the score numbers below it —
+     compact rather than stretching to fill the board. */
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 16px;
+  align-items: center; justify-content: center; gap: 12px;
+  padding: 6px 0 2px;
 }
 .bigdice { display: flex; gap: 22px; }
 .bigdie {
@@ -278,7 +280,7 @@ button.face:disabled { cursor: default; opacity: 0.7; }
 }
 
 /* actions */
-.actions { display: flex; flex-direction: column; gap: 10px; }
+.actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
 .buttons { display: flex; gap: 12px; }
 .btn {
   flex: 1; border: none; border-radius: 12px; padding: 14px;

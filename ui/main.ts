@@ -66,6 +66,42 @@ function dispatch(action: Action): void {
   render();
 }
 
+// ── Big-die roll animation ────────────────────────────────────────────────────
+// The primary dice tumble by flickering through random pip faces (with a shake)
+// for a short spell, then settle on the value the engine already committed to
+// state (read back from each die's data-value). Purely cosmetic — it runs after
+// dispatch, over the already-rendered final result.
+let rollTimer: ReturnType<typeof setInterval> | null = null;
+function playRollAnimation(): void {
+  if (rollTimer !== null) clearInterval(rollTimer);
+  const dice = Array.from(document.querySelectorAll<HTMLElement>(".bigdie"));
+  if (dice.length === 0) return;
+  dice.forEach((d) => d.classList.add("rolling"));
+  const step = 70;
+  const duration = 640;
+  let elapsed = 0;
+  rollTimer = setInterval(() => {
+    elapsed += step;
+    for (const d of dice) {
+      const face = d.querySelector(".bigdie-face");
+      if (face) face.innerHTML = renderPips(1 + Math.floor(Math.random() * 6));
+    }
+    if (elapsed >= duration) {
+      clearInterval(rollTimer!);
+      rollTimer = null;
+      for (const d of dice) {
+        const raw = d.dataset.value;
+        const value = raw ? Number(raw) : null;
+        d.classList.remove("rolling");
+        d.classList.add("settle");
+        const face = d.querySelector(".bigdie-face");
+        if (face) face.innerHTML = renderPips(value);
+        setTimeout(() => d.classList.remove("settle"), 240);
+      }
+    }
+  }, step);
+}
+
 // ── Small helpers ────────────────────────────────────────────────────────────
 const fmt = (n: number) => n.toLocaleString("en-US");
 /** A small keyboard-shortcut hint chip appended inside a button label. */
@@ -132,6 +168,56 @@ function renderDie(die: Die, dieIdx: number): string {
       <div class="die-label">DIE ${dieIdx + 1}</div>
       <div class="faces">${tiles}</div>
     </div>`;
+}
+
+// Classic dice pip layouts, as filled cells of a 3×3 grid (row-major, 0–8).
+const PIP_MAP: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
+
+/** Pips for a die face as a 3×3 grid. A blank/null face renders no dots. */
+function renderPips(value: number | null): string {
+  const on = value != null && PIP_MAP[value] ? PIP_MAP[value] : [];
+  const cells = Array.from({ length: 9 }, (_, i) =>
+    `<span class="pip-cell">${on.includes(i) ? `<span class="bigpip"></span>` : ""}</span>`,
+  ).join("");
+  return `<div class="pip-grid">${cells}</div>`;
+}
+
+/**
+ * The primary die: a large pixel-art die showing the value currently rolled on
+ * it. Clickable to roll (before a turn) or reroll (during one, while rerolls
+ * remain); disabled otherwise. The roll animation is layered on afterwards by
+ * playRollAnimation, which reads the settled value back from data-value.
+ */
+function renderBigDie(die: Die, idx: number): string {
+  const rolledFace = state.turn?.roll.find((r) => r.dieId === die.id)?.faceIndex ?? null;
+  const value = rolledFace != null ? die.faces[rolledFace].value : null;
+  const midTurn = state.turn !== null;
+  const rerolls = state.turn?.rerollsRemaining ?? 0;
+  const act = !midTurn ? "roll" : rerolls > 0 ? "reroll" : "";
+  const attrs = act ? `data-act="${act}"` : "disabled";
+  const cls = `bigdie${value == null ? " blank" : ""}${!midTurn ? " pristine" : ""}`;
+  return `
+    <button class="${cls}" ${attrs} data-value="${value ?? ""}" aria-label="Die ${idx + 1}">
+      <div class="bigdie-face">${renderPips(value)}</div>
+    </button>`;
+}
+
+/** Primary dice area with a reference-style hint / rolled readout below. */
+function renderBigDice(): string {
+  const dice = state.dice.map((d, i) => renderBigDie(d, i)).join("");
+  const caption = state.turn === null ? "CLICK DICE TO ROLL" : "REROLL OR SCORE THE HAND";
+  return `
+    <section class="bigdice-area">
+      <div class="bigdice">${dice}</div>
+      <div class="bigdice-caption">${caption}</div>
+    </section>`;
 }
 
 /** Clickable die faces used inside the setup / reward modals for inscribing. */
@@ -371,13 +457,15 @@ function render(): void {
         </div>
         <div class="mods-title">ACTIVE MODIFIERS</div>
         <div class="mod-slots">${renderModSlots()}</div>
+        <section class="dice-secondary">
+          <div class="secondary-title">YOUR DIE · FACES</div>
+          ${state.dice.map((d, i) => renderDie(d, i)).join("")}
+        </section>
       </aside>
       <main class="board">
         ${renderStatBar()}
         ${renderScorePanel()}
-        <section class="dice-area">
-          ${state.dice.map((d, i) => renderDie(d, i)).join("")}
-        </section>
+        ${renderBigDice()}
         ${renderActions()}
       </main>
     </div>
@@ -398,15 +486,17 @@ app.addEventListener("click", (ev) => {
   switch (act) {
     case "roll":
       dispatch({ type: "roll" });
+      playRollAnimation();
       break;
     case "reroll":
       dispatch({ type: "reroll", held: [] });
+      playRollAnimation();
       // Re-render just replaced the box; flash the fresh one to signal the burn.
       document.querySelector(".rerolls")?.classList.add("shake");
-      // No rerolls left means there's nothing left to decide — after a beat so
-      // the final roll is visible, score the hand automatically.
+      // No rerolls left means there's nothing left to decide — after the roll
+      // animation lands so the final face is visible, score the hand automatically.
       if (state.turn && state.turn.rerollsRemaining <= 0) {
-        window.setTimeout(() => dispatch({ type: "lockIn" }), 700);
+        window.setTimeout(() => dispatch({ type: "lockIn" }), 1050);
       }
       break;
     case "lockin":

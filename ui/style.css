@@ -43,6 +43,8 @@ body {
   border-radius: 16px;
   padding: 16px;
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.06), 0 8px 20px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
 }
 .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .logo .mark {
@@ -162,7 +164,90 @@ body {
 .times, .eq { font-size: 22px; color: var(--muted); font-weight: 700; }
 
 /* dice */
-.dice-area { flex: 1; display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+/* ── Primary die (large, pixel-art, animated) ─────────────── */
+.bigdice-area {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+}
+.bigdice { display: flex; gap: 22px; }
+.bigdie {
+  width: 150px; height: 150px; padding: 16px;
+  border: none; border-radius: 14px;
+  background: linear-gradient(150deg, #f7e6a8 0%, #eecf7f 100%);
+  /* Chunky pixel bevel: bright top-left inset, dark bottom-right inset, drop. */
+  box-shadow:
+    inset 5px 5px 0 rgba(255, 255, 255, 0.6),
+    inset -6px -6px 0 rgba(120, 88, 24, 0.4),
+    0 10px 0 rgba(0, 0, 0, 0.35),
+    0 14px 20px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  image-rendering: pixelated;
+}
+.bigdie:hover:not(:disabled):not(.rolling) { transform: translateY(-4px); }
+.bigdie:active:not(:disabled) { transform: translateY(2px); }
+.bigdie:disabled { cursor: default; }
+.bigdie-face { width: 100%; height: 100%; }
+.pip-grid {
+  width: 100%; height: 100%;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+}
+.pip-cell { display: flex; align-items: center; justify-content: center; }
+.bigpip {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #2b2f3c;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.4);
+}
+/* Before the first roll, prompt the empty face with a faint "?". */
+.bigdie.pristine .bigdie-face { position: relative; }
+.bigdie.pristine .bigdie-face::after {
+  content: "?"; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 68px; font-weight: 800; color: rgba(43, 47, 60, 0.28);
+}
+.bigdice-caption {
+  font-size: 12px; letter-spacing: 2px; font-weight: 700;
+  color: var(--gold); text-transform: uppercase;
+}
+@keyframes bigdie-roll {
+  0%   { transform: translateY(0) rotate(0deg) scale(1); }
+  25%  { transform: translateY(-12px) rotate(-13deg) scale(1.06); }
+  50%  { transform: translateY(5px) rotate(11deg) scale(0.96); }
+  75%  { transform: translateY(-7px) rotate(-8deg) scale(1.04); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+.bigdie.rolling { animation: bigdie-roll 0.22s linear infinite; cursor: default; }
+@keyframes bigdie-settle {
+  0%   { transform: scale(1.16); }
+  55%  { transform: scale(0.93); }
+  100% { transform: scale(1); }
+}
+.bigdie.settle { animation: bigdie-settle 0.24s ease-out; }
+
+/* ── Secondary die (faces breakdown, bottom-left of sidebar) ─ */
+.dice-secondary {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 2px solid rgba(255, 255, 255, 0.08);
+}
+.secondary-title {
+  font-size: 11px; letter-spacing: 2px; color: var(--gold);
+  font-weight: 700; margin-bottom: 10px; text-transform: uppercase;
+}
+.dice-secondary .die { margin-bottom: 8px; }
+.dice-secondary .die-label { color: var(--muted); }
+.dice-secondary .faces { gap: 6px; }
+.dice-secondary .face {
+  width: 36px; height: 44px; font-size: 20px; border-radius: 8px;
+  box-shadow: 0 3px 0 #9c9268;
+}
+.dice-secondary .face.rolled {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 2px var(--gold), 0 3px 0 #9c9268;
+}
+.dice-secondary .rolled-tag { font-size: 7px; padding: 1px 4px; bottom: -8px; }
+
 .die-label { font-size: 11px; letter-spacing: 1.5px; color: rgba(255,255,255,0.7); margin-bottom: 6px; }
 .faces { display: flex; gap: 10px; flex-wrap: wrap; }
 .face {

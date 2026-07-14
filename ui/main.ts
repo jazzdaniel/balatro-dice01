@@ -57,6 +57,28 @@ function dispatch(action: Action): void {
 
 // ── Small helpers ────────────────────────────────────────────────────────────
 const fmt = (n: number) => n.toLocaleString("en-US");
+/** A small keyboard-shortcut hint chip appended inside a button label. */
+const kbd = (key: string) => `<kbd class="kbd">${key}</kbd>`;
+/** Keys that pick the 1st / 2nd / 3rd offered reward card. */
+const OFFER_KEYS = ["A", "S", "D"];
+
+/** Spend one pending inscribe on a specific face. Shared by click and keyboard. */
+function applyInscribe(dieId: string, faceIndex: number, value: FaceValue): void {
+  inscribing = null;
+  pendingInscribes = Math.max(0, pendingInscribes - 1);
+  dispatch({ type: "inscribeFace", dieId, faceIndex, value });
+}
+
+/** The face a bare number key should stamp: the first blank one, else the very
+ *  first face (overwriting is allowed). Null only if there are no dice. */
+function nextInscribeTarget(): { dieId: string; faceIndex: number } | null {
+  for (const die of state.dice) {
+    const i = die.faces.findIndex((f) => f.value === null);
+    if (i !== -1) return { dieId: die.id, faceIndex: i };
+  }
+  const first = state.dice[0];
+  return first ? { dieId: first.id, faceIndex: 0 } : null;
+}
 const cardName = (id: string) => config.modifiers[id]?.name ?? id;
 const cardDesc = (id: string) => config.modifiers[id]?.description ?? "";
 
@@ -121,7 +143,7 @@ function renderInscribeRow(): string {
     .join("");
   const note = spent
     ? `<p class="muted">✓ Face added.</p>`
-    : `<p class="muted">Click a face to inscribe it (${pendingInscribes} to add). Overwriting a filled face is allowed.</p>`;
+    : `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click a face to choose where (${pendingInscribes} to add). Overwriting is allowed.</p>`;
   return `<div class="inscribe-section">${note}${dice}</div>`;
 }
 
@@ -180,10 +202,10 @@ function renderActions(): string {
   const rerolls = state.turn?.rerollsRemaining ?? 0;
   // Score Hand is always its own button; Roll and Reroll always share the other
   // button (same slot, same style) — "Roll Dice" to start a turn, "Reroll" during it.
-  const score = `<button class="btn score" data-act="lockin" ${midTurn ? "" : "disabled"}>Score Hand</button>`;
+  const score = `<button class="btn score" data-act="lockin" ${midTurn ? "" : "disabled"}>Score Hand${kbd("S")}</button>`;
   const rollReroll = midTurn
-    ? `<button class="btn reroll" data-act="reroll" ${rerolls > 0 ? "" : "disabled"}>Reroll</button>`
-    : `<button class="btn reroll" data-act="roll">Roll Dice</button>`;
+    ? `<button class="btn reroll" data-act="reroll" ${rerolls > 0 ? "" : "disabled"}>Reroll${kbd("R")}</button>`
+    : `<button class="btn reroll" data-act="roll">Roll Dice${kbd("R")}</button>`;
   const hint = midTurn
     ? rerolls > 0
       ? `Reroll, or score the hand`
@@ -252,7 +274,7 @@ function renderSetupOverlay(): string {
         <h2>Build your die</h2>
         <p>Your die begins with a single inscribed face. Choose it, then start the run.</p>
         ${renderInscribeRow()}
-        <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run →</button>
+        <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")}</button>
       </div>
     </div>`;
 }
@@ -260,11 +282,13 @@ function renderSetupOverlay(): string {
 function renderRewardOverlay(): string {
   if (state.phase !== "reward") return "";
   const offers = state.rewardOffers
-    .map((o) => {
+    .map((o, i) => {
       const id = o.modifierId ?? o.id;
+      const keyChar = OFFER_KEYS[i];
+      const key = keyChar ? kbd(keyChar) : "";
       return `
         <button class="offer" data-act="take-card" data-offer="${o.id}">
-          <div class="offer-badge">MOD</div>
+          <div class="offer-badge">MOD ${key}</div>
           <div class="offer-name">${cardName(id)}</div>
           <div class="offer-desc">${cardDesc(id)}</div>
         </button>`;
@@ -295,7 +319,7 @@ function renderRewardOverlay(): string {
           <p class="section-title">Add a face to your die</p>
           ${renderInscribeRow()}
         </div>
-        <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue →</button>
+        <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue ${kbd("↵")}</button>
       </div>
     </div>`;
 }
@@ -310,7 +334,7 @@ function renderGameOverOverlay(): string {
         <p class="muted">Cards held: ${
           state.acquiredModifiers.map(cardName).join(", ") || "none"
         }</p>
-        <button class="btn continue" data-act="restart">New Run →</button>
+        <button class="btn continue" data-act="restart">New Run ${kbd("↵")}</button>
       </div>
     </div>`;
 }
@@ -375,17 +399,7 @@ app.addEventListener("click", (ev) => {
       break;
     }
     case "setface": {
-      if (inscribing) {
-        const target = inscribing;
-        inscribing = null;
-        pendingInscribes = Math.max(0, pendingInscribes - 1);
-        dispatch({
-          type: "inscribeFace",
-          dieId: target.dieId,
-          faceIndex: target.faceIndex,
-          value: Number(el.dataset.value) as FaceValue,
-        });
-      }
+      if (inscribing) applyInscribe(inscribing.dieId, inscribing.faceIndex, Number(el.dataset.value) as FaceValue);
       break;
     }
     case "cancel-inscribe":
@@ -425,6 +439,64 @@ app.addEventListener("click", (ev) => {
       pendingInscribes = 1;
       render();
       break;
+  }
+});
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
+// Each key maps to CSS selectors for the button it should press. We don't
+// re-implement any action here: we find the button and click it, so shortcuts
+// inherit the click handler's logic and the buttons' disabled state. Selectors
+// are tried in order; the first enabled match wins. When an overlay is open we
+// only match inside it, so board buttons underneath stay unreachable — exactly
+// like clicking, where the overlay covers the board.
+const shortcuts: Record<string, string[]> = {
+  // Space / R press the shared Roll·Reroll button, whichever it currently is.
+  " ": ["[data-act='reroll']", "[data-act='roll']"],
+  r: ["[data-act='reroll']", "[data-act='roll']"],
+  // S scores the hand mid-turn; during rewards it takes the 2nd offered card.
+  s: ["[data-act='lockin']", ".offers .offer:nth-child(2)"],
+  // A / D take the 1st / 3rd offered card.
+  a: [".offers .offer:nth-child(1)"],
+  d: [".offers .offer:nth-child(3)"],
+  // Enter advances the primary flow: an overlay's continue button, else score
+  // the hand, else roll to start the turn.
+  Enter: [".btn.continue", "[data-act='lockin']", "[data-act='roll']"],
+  // Esc backs out of the face-value picker.
+  Escape: ["[data-act='cancel-inscribe']"],
+};
+
+window.addEventListener("keydown", (ev) => {
+  if (ev.repeat || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+
+  // 1–6 stamp a face while inscribing is available. If a face was clicked first
+  // (value picker open) fill that face; otherwise stamp the next one directly.
+  if (/^[1-6]$/.test(ev.key)) {
+    const value = Number(ev.key) as FaceValue;
+    if (inscribing) {
+      applyInscribe(inscribing.dieId, inscribing.faceIndex, value);
+    } else if (pendingInscribes > 0) {
+      const target = nextInscribeTarget();
+      if (target) applyInscribe(target.dieId, target.faceIndex, value);
+      else return;
+    } else return;
+    ev.preventDefault();
+    return;
+  }
+
+  const selectors = shortcuts[ev.key];
+  if (!selectors) return;
+
+  // Scope the search to the topmost overlay when one is open (it's rendered last).
+  const overlays = document.querySelectorAll<HTMLElement>(".overlay");
+  const root: ParentNode = overlays.length ? overlays[overlays.length - 1] : document;
+
+  for (const sel of selectors) {
+    const btn = root.querySelector<HTMLButtonElement>(sel);
+    if (btn && !btn.disabled) {
+      ev.preventDefault();
+      btn.click();
+      return;
+    }
   }
 });
 

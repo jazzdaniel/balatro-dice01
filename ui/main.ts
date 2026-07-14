@@ -32,6 +32,12 @@ function freshSeed(): string {
 let state: GameState = createInitialState(freshSeed(), config);
 let inscribing: { dieId: string; faceIndex: number } | null = null;
 let pendingDiscardOffer: string | null = null;
+/** Set when the player declines this round's card, so the offers step is done
+ *  without acquiring one. Taking a card empties the offers instead. */
+let cardSkipped = false;
+/** Set when the player declines to inscribe a face, so the face step is done
+ *  without spending the pending inscribe. */
+let faceSkipped = false;
 /** Has the run begun? Before this, the player inscribes their one starting face. */
 let started = false;
 /**
@@ -50,8 +56,13 @@ function dispatch(action: Action): void {
   } catch (err) {
     console.warn("action rejected:", action, err);
   }
-  // Finishing a round grants one face to inscribe in the reward step.
-  if (state.phase === "reward" && before !== "reward") pendingInscribes = 1;
+  // Finishing a round grants one face to inscribe in the reward step, and a
+  // fresh card choice the player may take or skip.
+  if (state.phase === "reward" && before !== "reward") {
+    pendingInscribes = 1;
+    cardSkipped = false;
+    faceSkipped = false;
+  }
   render();
 }
 
@@ -126,6 +137,13 @@ function renderDie(die: Die, dieIdx: number): string {
 /** Clickable die faces used inside the setup / reward modals for inscribing. */
 function renderInscribeRow(): string {
   const spent = pendingInscribes <= 0;
+  // Once the face step is resolved — a face was added or the player skipped it —
+  // just report the outcome; there's nothing left to interact with.
+  if (spent || faceSkipped) {
+    return `<div class="inscribe-section"><p class="muted">${
+      faceSkipped ? "Skipped — no face added." : "✓ Face added."
+    }</p></div>`;
+  }
   const dice = state.dice
     .map((die, dieIdx) => {
       const tiles = die.faces
@@ -133,7 +151,7 @@ function renderInscribeRow(): string {
           const blank = f.value === null;
           return `
             <button class="face small${blank ? " blank" : ""}"
-                    data-act="face" data-die="${die.id}" data-face="${i}" ${spent ? "disabled" : ""}>
+                    data-act="face" data-die="${die.id}" data-face="${i}">
               <span class="pip">${blank ? "" : f.value}</span>
             </button>`;
         })
@@ -141,10 +159,9 @@ function renderInscribeRow(): string {
       return `<div class="die"><div class="die-label">DIE ${dieIdx + 1}</div><div class="faces">${tiles}</div></div>`;
     })
     .join("");
-  const note = spent
-    ? `<p class="muted">✓ Face added.</p>`
-    : `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click a face to choose where (${pendingInscribes} to add). Overwriting is allowed.</p>`;
-  return `<div class="inscribe-section">${note}${dice}</div>`;
+  const note = `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click a face to choose where (${pendingInscribes} to add). Overwriting is allowed.</p>`;
+  const skip = `<button class="btn skip" data-act="skip-face">Skip — no face ${kbd("Z")}</button>`;
+  return `<div class="inscribe-section">${note}${dice}${skip}</div>`;
 }
 
 /**
@@ -267,12 +284,12 @@ function renderInscribeOverlay(): string {
 /** Pre-run setup: inscribe the single starting face, then begin. */
 function renderSetupOverlay(): string {
   if (started) return "";
-  const canStart = pendingInscribes <= 0;
+  const canStart = faceSkipped || pendingInscribes <= 0;
   return `
     <div class="overlay">
       <div class="modal">
         <h2>Build your die</h2>
-        <p>Your die begins with a single inscribed face. Choose it, then start the run.</p>
+        <p>Your die begins with a single inscribed face. Choose it, or skip to start with a blank die.</p>
         ${renderInscribeRow()}
         <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")}</button>
       </div>
@@ -304,16 +321,21 @@ function renderRewardOverlay(): string {
          </div>
        </div>`
     : "";
-  const cardDone = state.rewardOffers.length === 0;
-  const faceDone = pendingInscribes <= 0;
-  const canContinue = cardDone && faceDone;
-  const cardBody = state.rewardOffers.length
-    ? `<p>Take a card into your run:</p><div class="offers">${offers}</div>${discard}`
-    : `<p>Card taken. You hold ${state.acquiredModifiers.length}/${config.cards.slots}.</p>`;
+  // The card step is done once a card is taken (offers cleared) or skipped.
+  const cardResolved = cardSkipped || state.rewardOffers.length === 0;
+  const faceDone = faceSkipped || pendingInscribes <= 0;
+  const canContinue = cardResolved && faceDone;
+  const cardBody = !cardResolved
+    ? `<p>Take a card into your run, or skip it:</p>
+       <div class="offers">${offers}</div>${discard}
+       <button class="btn ghost skip" data-act="skip-card">Skip — no card ${kbd("X")}</button>`
+    : cardSkipped
+      ? `<p class="muted">No card taken this round.</p>`
+      : `<p>Card taken. You hold ${state.acquiredModifiers.length}/${config.cards.slots}.</p>`;
   return `
     <div class="overlay">
       <div class="modal">
-        <h2>✅ Round ${state.round} cleared!</h2>
+        <h2> Round ${state.round} cleared!</h2>
         ${cardBody}
         <div class="reward-inscribe">
           <p class="section-title">Add a face to your die</p>
@@ -420,6 +442,16 @@ app.addEventListener("click", (ev) => {
       }
       break;
     }
+    case "skip-card":
+      pendingDiscardOffer = null; // back out of any in-progress discard too
+      cardSkipped = true;
+      render();
+      break;
+    case "skip-face":
+      inscribing = null; // close the value picker if it was open
+      faceSkipped = true;
+      render();
+      break;
     case "discard-card": {
       if (pendingDiscardOffer) {
         const offer = pendingDiscardOffer;
@@ -435,6 +467,8 @@ app.addEventListener("click", (ev) => {
       state = createInitialState(freshSeed(), config);
       inscribing = null;
       pendingDiscardOffer = null;
+      cardSkipped = false;
+      faceSkipped = false;
       started = false;
       pendingInscribes = 1;
       render();
@@ -458,6 +492,9 @@ const shortcuts: Record<string, string[]> = {
   // A / D take the 1st / 3rd offered card.
   a: [".offers .offer:nth-child(1)"],
   d: [".offers .offer:nth-child(3)"],
+  // X skips the card reward; Z skips adding a face.
+  x: ["[data-act='skip-card']"],
+  z: ["[data-act='skip-face']"],
   // Enter advances the primary flow: an overlay's continue button, else score
   // the hand, else roll to start the turn.
   Enter: [".btn.continue", "[data-act='lockin']", "[data-act='roll']"],
@@ -472,6 +509,7 @@ window.addEventListener("keydown", (ev) => {
   // (value picker open) fill that face; otherwise stamp the next one directly.
   if (/^[1-6]$/.test(ev.key)) {
     const value = Number(ev.key) as FaceValue;
+    if (faceSkipped) return; // face step already resolved this round
     if (inscribing) {
       applyInscribe(inscribing.dieId, inscribing.faceIndex, value);
     } else if (pendingInscribes > 0) {

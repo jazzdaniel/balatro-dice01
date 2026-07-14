@@ -207,6 +207,13 @@ button.face:disabled { cursor: default; opacity: 0.7; }
 .btn.reroll { background: var(--blue-btn); }
 .btn.continue { background: var(--gold); color: var(--ink); margin-top: 8px; width: 100%; }
 .btn.ghost { background: #3a4570; margin-top: 10px; }
+/* Skip is a quiet, secondary action — de-emphasized next to the gold Continue. */
+.btn.skip {
+  width: 100%; margin-top: 12px; font-size: 15px;
+  background: transparent; color: var(--muted);
+  border: 2px solid var(--line); box-shadow: none;
+}
+.btn.skip:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
 /* Keyboard-shortcut hint chip inside a button label. */
 .kbd {
   display: inline-block; margin-left: 8px; padding: 1px 7px;

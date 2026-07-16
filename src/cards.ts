@@ -136,8 +136,121 @@ const blankCheck: Modifier = {
   },
 };
 
+/** A fully inscribed die earns a reliable late-game multiplier. */
+const cleanFinish: Modifier = {
+  id: "clean-finish",
+  name: "Clean Finish",
+  description: "If your die has no blank faces: +2 Mult.",
+  phase: "onFinal",
+  apply: (ctx) => {
+    const complete = ctx.dieFaces.length > 0 && ctx.dieFaces.every((faces) => faces.every((face) => face !== null));
+    if (!complete) return ctx;
+    return addStep({ ...ctx, mult: ctx.mult + 2 }, {
+      source: "Clean Finish",
+      kind: "mult",
+      amount: 2,
+      note: "fully inscribed die",
+    });
+  },
+};
+
+/** Repeated inscriptions provide a gradual additive payoff. */
+const carbonCopy: Modifier = {
+  id: "carbon-copy",
+  name: "Carbon Copy",
+  description: "+1 Chip for every copy of the rolled value on your die.",
+  phase: "onScore",
+  apply: (ctx) => {
+    const amount = ctx.faces.reduce((total, value, i) => {
+      if (value === null) return total;
+      return total + (ctx.dieFaces[i]?.filter((face) => face === value).length ?? 0);
+    }, 0);
+    if (amount === 0) return ctx;
+    return addStep({ ...ctx, add: ctx.add + amount }, {
+      source: "Carbon Copy",
+      kind: "add",
+      amount,
+      note: `${amount} matching inscription${amount === 1 ? "" : "s"}`,
+    });
+  },
+};
+
+/** A one-off inscription gets paid for staying unique. */
+const loneWolf: Modifier = {
+  id: "lone-wolf",
+  name: "Lone Wolf",
+  description: "If the rolled value appears only once on your die: +4 Chips.",
+  phase: "onScore",
+  apply: (ctx) => {
+    const triggers = ctx.faces.reduce((total, value, i) => {
+      if (value === null) return total;
+      const copies = ctx.dieFaces[i]?.filter((face) => face === value).length ?? 0;
+      return total + (copies === 1 ? 1 : 0);
+    }, 0);
+    if (triggers === 0) return ctx;
+    const amount = triggers * 4;
+    return addStep({ ...ctx, add: ctx.add + amount }, {
+      source: "Lone Wolf",
+      kind: "add",
+      amount,
+      note: "unique rolled value",
+    });
+  },
+};
+
+/** Give the currently underserved middle faces a strong identity. */
+const middleChild: Modifier = {
+  id: "middle-child",
+  name: "Middle Child",
+  description: "Each 3 or 4 you roll: +2 Mult.",
+  phase: "onFinal",
+  apply: (ctx) => {
+    const hits = ctx.faces.filter((value) => value === 3 || value === 4).length;
+    if (hits === 0) return ctx;
+    const amount = hits * 2;
+    return addStep({ ...ctx, mult: ctx.mult + amount }, {
+      source: "Middle Child",
+      kind: "mult",
+      amount,
+      note: `${hits} middle face${hits === 1 ? "" : "s"}`,
+    });
+  },
+};
+
+/** Diverse inscriptions build Mult, capped so a completed rainbow stays sane. */
+const varietyPack: Modifier = {
+  id: "variety-pack",
+  name: "Variety Pack",
+  description: "Roll a non-blank: +1 Mult per distinct inscribed value, up to +4.",
+  phase: "onFinal",
+  apply: (ctx) => {
+    if (!ctx.faces.some((value) => value !== null)) return ctx;
+    const distinct = new Set(ctx.dieFaces.flat().filter((value) => value !== null)).size;
+    const amount = Math.min(4, distinct);
+    if (amount === 0) return ctx;
+    return addStep({ ...ctx, mult: ctx.mult + amount }, {
+      source: "Variety Pack",
+      kind: "mult",
+      amount,
+      note: `${distinct} distinct, capped at 4`,
+    });
+  },
+};
+
 /** The starter pool, in a stable order. */
-export const cardModifiers: readonly Modifier[] = [fiver, oddball, rainbow, trips, underdog, blankCheck];
+export const cardModifiers: readonly Modifier[] = [
+  fiver,
+  oddball,
+  rainbow,
+  trips,
+  underdog,
+  blankCheck,
+  cleanFinish,
+  carbonCopy,
+  loneWolf,
+  middleChild,
+  varietyPack,
+];
 
 /** Registry form for `Config.modifiers`. */
 export const cardRegistry: ModifierRegistry = Object.fromEntries(

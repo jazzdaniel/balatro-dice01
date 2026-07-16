@@ -152,6 +152,53 @@ describe("cards (modifier economy)", () => {
     // A non-blank roll does not trigger the card.
     expect(getScorePreview(turnShowing(state, 0))?.total).toBe(4);
   });
+
+  it("Clean Finish rewards a die only after every face is inscribed", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = { ...state, acquiredModifiers: ["clean-finish"] };
+    for (const action of inscribeAll("die-0", 2)) state = reduce(state, action);
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(6);
+  });
+
+  it("Carbon Copy adds chips for every matching inscription", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    for (const faceIndex of [0, 1, 2]) {
+      state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex, value: 4 });
+    }
+    state = { ...state, acquiredModifiers: ["carbon-copy"] };
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(7);
+  });
+
+  it("Lone Wolf rewards a unique inscription but not a duplicate", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 2 });
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 1, value: 3 });
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 2, value: 3 });
+    state = { ...state, acquiredModifiers: ["lone-wolf"] };
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(6);
+    expect(getScorePreview(turnShowing(state, 1))?.total).toBe(3);
+  });
+
+  it("Middle Child gives 3 and 4 rolls +2 Mult", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 3 });
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 1, value: 5 });
+    state = { ...state, acquiredModifiers: ["middle-child"] };
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(9);
+    expect(getScorePreview(turnShowing(state, 1))?.total).toBe(5);
+  });
+
+  it("Variety Pack counts distinct inscriptions and caps its bonus at +4 Mult", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    for (const [faceIndex, value] of ([1, 2, 3, 4, 5] as FaceValue[]).entries()) {
+      state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex, value });
+    }
+    state = { ...state, acquiredModifiers: ["variety-pack"] };
+    const preview = getScorePreview(turnShowing(state, 0));
+    expect(preview?.mult).toBe(5);
+    expect(preview?.total).toBe(5);
+    expect(preview?.steps).toContainEqual(expect.objectContaining({ source: "Variety Pack", amount: 4 }));
+  });
 });
 
 describe("replay", () => {

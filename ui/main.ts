@@ -82,6 +82,7 @@ let rollResultsPending = false;
 let previousRollState: GameState | null = null;
 let scoreTimer: ReturnType<typeof setInterval> | null = null;
 let handCountTimer: ReturnType<typeof setInterval> | null = null;
+let targetCountTimer: ReturnType<typeof setInterval> | null = null;
 let scoreSequencePending = false;
 let celebrateRoundWin = false;
 let celebrationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -290,11 +291,51 @@ function finishScoreSequence(): void {
   }
 }
 
+function animateNewTurnRolls(previous: number, next: number): void {
+  const field = document.querySelector<HTMLElement>(".rolls-left");
+  const label = field?.querySelector<HTMLElement>(".stat-label");
+  if (!field || !label) return;
+
+  field.classList.add("new-turn");
+  field.querySelector<HTMLElement>(".pip-dot.spent")?.classList.add("just-spent");
+  label.textContent = `ROLLS LEFT ${previous}/${config.turnsPerRound}`;
+  label.classList.add("counter-changing");
+  window.setTimeout(() => {
+    label.textContent = `ROLLS LEFT ${next}/${config.turnsPerRound}`;
+  }, 600);
+  window.setTimeout(() => {
+    field.classList.remove("new-turn");
+    label.classList.remove("counter-changing");
+  }, 1250);
+}
+
+function countUpTargetScore(): void {
+  const target = state.targetScore;
+  const targetEl = document.querySelector<HTMLElement>(".target-num");
+  if (!targetEl || target <= 0) return;
+  if (targetCountTimer !== null) clearInterval(targetCountTimer);
+
+  let shown = 0;
+  targetEl.textContent = "0";
+  targetEl.classList.add("counting");
+  const tickMs = Math.max(12, Math.min(100, Math.round(100 / Math.sqrt(Math.max(1, target / 8)))));
+  targetCountTimer = window.setInterval(() => {
+    shown += 1;
+    targetEl.textContent = fmt(shown);
+    if (shown >= target) {
+      clearInterval(targetCountTimer!);
+      targetCountTimer = null;
+      targetEl.classList.remove("counting");
+    }
+  }, tickMs);
+}
+
 function scoreHand(): void {
   if (!state.turn) return;
   if (handCountTimer !== null) clearInterval(handCountTimer);
   handCountTimer = null;
   const startingScore = state.roundScore;
+  const startingRolls = state.turnsRemaining;
   const preview = getScorePreview(state);
   const handScore = preview.total;
   const influencingCards = new Set(
@@ -306,6 +347,7 @@ function scoreHand(): void {
   scoreSequencePending = reachesTarget || state.turnsRemaining <= 1;
   celebrateRoundWin = reachesTarget;
   dispatch({ type: "lockIn" });
+  if (state.phase === "rolling") animateNewTurnRolls(startingRolls, state.turnsRemaining);
 
   document.querySelectorAll<HTMLElement>(".mod[data-mod]").forEach((card, i) => {
     if (!influencingCards.has(card.dataset.mod ?? "")) return;
@@ -708,7 +750,7 @@ function renderGameOverOverlay(): string {
         <p class="muted">Cards held: ${
           state.acquiredModifiers.map(cardName).join(", ") || "none"
         }</p>
-        <button class="btn continue" data-act="restart">New Run ${kbd("↵")}</button>
+        <button class="btn continue" data-act="restart">New Run ${kbd("↵")} ${kbd("R")}</button>
       </div>
     </div>`;
 }
@@ -793,8 +835,6 @@ app.addEventListener("click", (ev) => {
       break;
     case "lockin":
       scoreHand();
-      // If the round continues, flash the rolls-left box to mark the spent roll.
-      document.querySelector(".rolls-left")?.classList.add("shake");
       break;
     case "face": {
       if (pendingInscribes <= 0) break; // inscribing only at setup / between rounds
@@ -813,6 +853,7 @@ app.addEventListener("click", (ev) => {
     case "start-run":
       if (pendingInscribes <= 0) started = true;
       render();
+      if (started) countUpTargetScore();
       break;
     case "take-card": {
       const offer = el.dataset.offer!;
@@ -844,12 +885,15 @@ app.addEventListener("click", (ev) => {
     }
     case "next-round":
       dispatch({ type: "nextRound" });
+      countUpTargetScore();
       break;
     case "restart":
       if (scoreTimer !== null) clearInterval(scoreTimer);
       scoreTimer = null;
       if (handCountTimer !== null) clearInterval(handCountTimer);
       handCountTimer = null;
+      if (targetCountTimer !== null) clearInterval(targetCountTimer);
+      targetCountTimer = null;
       if (celebrationTimer !== null) clearTimeout(celebrationTimer);
       celebrationTimer = null;
       scoreSequencePending = false;
@@ -878,7 +922,7 @@ app.addEventListener("click", (ev) => {
 const shortcuts: Record<string, string[]> = {
   // Space / R press the shared Roll·Reroll button, whichever it currently is.
   " ": ["[data-act='reroll']", "[data-act='roll']"],
-  r: ["[data-act='start-run']", "[data-act='next-round']", "[data-act='reroll']", "[data-act='roll']"],
+  r: ["[data-act='start-run']", "[data-act='next-round']", "[data-act='restart']", "[data-act='reroll']", "[data-act='roll']"],
   // S scores the hand mid-turn; during rewards it takes the 2nd offered card.
   s: ["[data-act='lockin']", ".offers .offer:nth-child(2)"],
   // A / D take the 1st / 3rd offered card.

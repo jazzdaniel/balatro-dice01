@@ -146,6 +146,28 @@ body {
 }
 .stat.pips.danger .stat-label { color: var(--mult); font-weight: 800; }
 .stat.pips.shake { animation: shake 0.32s ease; }
+.stat.pips.rolls-left.new-turn {
+  animation: rolls-new-turn-shine 1.2s ease-out;
+}
+.rolls-left .stat-label.counter-changing {
+  animation: rolls-counter-crossfade 1.2s ease-in-out;
+}
+.rolls-left .pip-dot.just-spent {
+  animation: roll-pip-spent 1.15s ease-out;
+}
+@keyframes rolls-new-turn-shine {
+  0%, 100% { border-color: var(--line); box-shadow: none; }
+  35% { border-color: var(--gold); box-shadow: 0 0 24px rgba(242, 193, 78, 0.72), inset 0 0 16px rgba(242, 193, 78, 0.12); }
+}
+@keyframes rolls-counter-crossfade {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  48% { opacity: 0; transform: translateY(3px); }
+  52% { opacity: 0; transform: translateY(-3px); }
+}
+@keyframes roll-pip-spent {
+  0% { background: var(--gold); border-color: var(--gold); opacity: 1; box-shadow: 0 0 10px var(--gold); }
+  100% { opacity: 1; }
+}
 @keyframes danger-pulse {
   0%, 100% { box-shadow: 0 0 10px rgba(224, 80, 58, 0.45); }
   50% { box-shadow: 0 0 20px rgba(224, 80, 58, 0.85); }
@@ -166,6 +188,9 @@ body {
 }
 .label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .target-num { font-size: 34px; font-weight: 800; color: var(--mult); line-height: 1.1; }
+.target-num.counting {
+  text-shadow: 0 0 12px currentColor;
+}
 .current-num { font-size: 34px; font-weight: 800; color: var(--gold); line-height: 1.1; }
 .current-num.counting, .hand.counting {
   text-shadow: 0 0 12px currentColor;

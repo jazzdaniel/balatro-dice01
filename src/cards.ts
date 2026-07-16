@@ -2,7 +2,8 @@
  * The starter card pool — modifiers the player acquires into their run's card
  * slots (see Config.cards). Every card here pushes toward inscribing values
  * *other than* six: since score is `(sum + add) × mult` and a raw 6 only grows
- * `sum`, the anti-6 pressure lives in `mult`. All five are `onFinal` mult cards.
+ * `sum`, most anti-6 pressure lives in `mult`; blank-focused effects can use
+ * additive chips so a dud is still able to score.
  *
  * Values are deliberately simple starting tuning — the whole point of the lab
  * is to rerun with different numbers.
@@ -113,8 +114,30 @@ const underdog: Modifier = {
   },
 };
 
+/** Rolling any dud grants +1 additive chip for every blank face held. */
+const blankCheck: Modifier = {
+  id: "blank-check",
+  name: "Blank Check",
+  description: "Roll a blank: +1 Chip for every blank face across your dice.",
+  phase: "onScore",
+  apply: (ctx) => {
+    if (!ctx.faces.some((v) => v === null)) return ctx;
+    const amount = ctx.dieFaces.reduce(
+      (total, faces) => total + faces.filter((face) => face === null).length,
+      0,
+    );
+    if (amount === 0) return ctx;
+    return addStep({ ...ctx, add: ctx.add + amount }, {
+      source: "Blank Check",
+      kind: "add",
+      amount,
+      note: `${amount} blank face${amount === 1 ? "" : "s"}`,
+    });
+  },
+};
+
 /** The starter pool, in a stable order. */
-export const cardModifiers: readonly Modifier[] = [fiver, oddball, rainbow, trips, underdog];
+export const cardModifiers: readonly Modifier[] = [fiver, oddball, rainbow, trips, underdog, blankCheck];
 
 /** Registry form for `Config.modifiers`. */
 export const cardRegistry: ModifierRegistry = Object.fromEntries(

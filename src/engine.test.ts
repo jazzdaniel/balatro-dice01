@@ -140,6 +140,18 @@ describe("cards (modifier economy)", () => {
     // Showing a blank face (index 5) → no trigger → sum 0.
     expect(getScorePreview(turnShowing(state, 5))?.total).toBe(0);
   });
+
+  it("Blank Check scores each held blank only when a blank is rolled", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 4 });
+    state = { ...state, acquiredModifiers: ["blank-check"] };
+    // Five blank faces held and a blank showing: (0 + 5) × 1 = 5.
+    const blank = getScorePreview(turnShowing(state, 5));
+    expect(blank?.total).toBe(5);
+    expect(blank?.steps).toContainEqual(expect.objectContaining({ source: "Blank Check", amount: 5 }));
+    // A non-blank roll does not trigger the card.
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(4);
+  });
 });
 
 describe("replay", () => {

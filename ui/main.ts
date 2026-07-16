@@ -295,11 +295,24 @@ function scoreHand(): void {
   if (handCountTimer !== null) clearInterval(handCountTimer);
   handCountTimer = null;
   const startingScore = state.roundScore;
-  const handScore = getScorePreview(state).total;
+  const preview = getScorePreview(state);
+  const handScore = preview.total;
+  const influencingCards = new Set(
+    state.acquiredModifiers.filter((id) =>
+      preview.steps.some((step) => step.source === cardName(id) && step.amount !== 0),
+    ),
+  );
   const reachesTarget = startingScore + handScore >= state.targetScore;
   scoreSequencePending = reachesTarget || state.turnsRemaining <= 1;
   celebrateRoundWin = reachesTarget;
   dispatch({ type: "lockIn" });
+
+  document.querySelectorAll<HTMLElement>(".mod[data-mod]").forEach((card, i) => {
+    if (!influencingCards.has(card.dataset.mod ?? "")) return;
+    card.style.setProperty("--card-trigger-delay", `${i * 70}ms`);
+    card.classList.add("triggered");
+    card.addEventListener("animationend", () => card.classList.remove("triggered"), { once: true });
+  });
 
   const currentEl = document.querySelector<HTMLElement>(".current-num");
   const handEl = document.querySelector<HTMLElement>(".hand");
@@ -369,7 +382,7 @@ function renderModSlots(): string {
       cells.push(`<div class="mod empty"><span>EMPTY SLOT</span></div>`);
     } else {
       cells.push(`
-        <div class="mod">
+        <div class="mod" data-mod="${id}">
           <div class="mod-badge">MOD</div>
           <div class="mod-name">${cardName(id)}</div>
           <div class="mod-desc">${cardDesc(id)}</div>

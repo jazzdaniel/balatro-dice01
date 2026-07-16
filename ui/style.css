@@ -78,6 +78,27 @@ body {
 }
 .mod-name { font-weight: 800; font-size: 15px; margin: 4px 0 4px; }
 .mod-desc { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mod.triggered {
+  z-index: 2;
+  animation: modifier-trigger 0.16s linear var(--card-trigger-delay, 0ms) 7;
+}
+.mod.triggered .mod-badge {
+  box-shadow: 0 0 14px var(--gold);
+}
+@keyframes modifier-trigger {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0);
+    border-color: var(--line);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  }
+  25% { transform: translate(-3px, 1px) rotate(-0.7deg); }
+  50% {
+    transform: translate(3px, -1px) rotate(0.7deg);
+    border-color: var(--gold);
+    box-shadow: 0 0 22px rgba(242, 193, 78, 0.85), inset 0 0 14px rgba(242, 193, 78, 0.16);
+  }
+  75% { transform: translate(-2px, -1px) rotate(-0.45deg); }
+}
 .mod.empty {
   border-style: dashed; background: var(--slot);
   display: flex; align-items: center; justify-content: center;

@@ -40,6 +40,8 @@ let cardSkipped = false;
 let faceSkipped = false;
 /** Has the run begun? Before this, the player inscribes their one starting face. */
 let started = false;
+/** The reward overlay waits for an explicit post-win Continue / R press. */
+let rewardScreenOpen = false;
 /**
  * Faces the player may inscribe right now. Inscribing is gated: 1 at setup, +1
  * each time a round finishes (granted on entry to the reward phase). It is 0
@@ -62,6 +64,7 @@ function dispatch(action: Action): void {
     pendingInscribes = 1;
     cardSkipped = false;
     faceSkipped = false;
+    rewardScreenOpen = false;
   }
   render();
 }
@@ -231,10 +234,27 @@ function revealRollResults(): void {
 }
 
 /** Count the newly rolled hand up from zero, accelerating for larger totals. */
+function animateInfluencingCards(preview: ReturnType<typeof getScorePreview>): void {
+  if (!preview) return;
+  const influencingCards = new Set(
+    state.acquiredModifiers.filter((id) =>
+      preview.steps.some((step) => step.source === cardName(id) && step.amount !== 0),
+    ),
+  );
+  document.querySelectorAll<HTMLElement>(".mod[data-mod]").forEach((card, i) => {
+    if (!influencingCards.has(card.dataset.mod ?? "")) return;
+    card.style.setProperty("--card-trigger-delay", `${i * 70}ms`);
+    card.classList.add("triggered");
+    card.addEventListener("animationend", () => card.classList.remove("triggered"), { once: true });
+  });
+}
+
 function countUpHandPreview(): void {
-  const handScore = state.turn ? getScorePreview(state).total : 0;
+  const preview = state.turn ? getScorePreview(state) : null;
+  const handScore = preview?.total ?? 0;
   const handEl = document.querySelector<HTMLElement>(".roll-result-new .hand");
   if (!handEl || !handEl.firstChild) return;
+  animateInfluencingCards(preview);
   if (handScore <= 0) {
     handEl.classList.add("sad-zero");
     handEl.addEventListener("animationend", () => handEl.classList.remove("sad-zero"), { once: true });
@@ -342,23 +362,11 @@ function scoreHand(): void {
   const startingRolls = state.turnsRemaining;
   const preview = getScorePreview(state);
   const handScore = preview.total;
-  const influencingCards = new Set(
-    state.acquiredModifiers.filter((id) =>
-      preview.steps.some((step) => step.source === cardName(id) && step.amount !== 0),
-    ),
-  );
   const reachesTarget = startingScore + handScore >= state.targetScore;
   scoreSequencePending = reachesTarget || state.turnsRemaining <= 1;
   celebrateRoundWin = reachesTarget;
   dispatch({ type: "lockIn" });
   if (state.phase === "rolling") animateNewTurnRolls(startingRolls, state.turnsRemaining);
-
-  document.querySelectorAll<HTMLElement>(".mod[data-mod]").forEach((card, i) => {
-    if (!influencingCards.has(card.dataset.mod ?? "")) return;
-    card.style.setProperty("--card-trigger-delay", `${i * 70}ms`);
-    card.classList.add("triggered");
-    card.addEventListener("animationend", () => card.classList.remove("triggered"), { once: true });
-  });
 
   const currentEl = document.querySelector<HTMLElement>(".current-num");
   const handEl = document.querySelector<HTMLElement>(".hand");
@@ -489,7 +497,7 @@ function renderBigDie(die: Die, idx: number): string {
   const value = rolledFace != null ? die.faces[rolledFace].value : null;
   const midTurn = state.turn !== null;
   const rerolls = state.turn?.rerollsRemaining ?? 0;
-  const act = !midTurn ? "roll" : rerolls > 0 ? "reroll" : "";
+  const act = state.phase !== "rolling" ? "" : !midTurn ? "roll" : rerolls > 0 ? "reroll" : "";
   const attrs = act ? `data-act="${act}"` : "disabled";
   // In cube-3d mode the resting die is itself a 3D cube, so the pre-roll ("click
   // to roll") and between-roll states match the tumbling animation. The flat pip
@@ -514,7 +522,11 @@ function renderBigDie(die: Die, idx: number): string {
 /** Primary dice area with a reference-style hint / rolled readout below. */
 function renderBigDice(): string {
   const dice = state.dice.map((d, i) => renderBigDie(d, i)).join("");
-  const caption = state.turn === null ? "CLICK DICE TO ROLL" : "REROLL OR SCORE THE HAND";
+  const caption = state.phase === "reward"
+    ? "ROUND CLEARED · CONTINUE"
+    : state.turn === null
+      ? "CLICK DICE TO ROLL"
+      : "REROLL OR SCORE THE HAND";
   return `
     <section class="bigdice-area">
       <div class="bigdice">${dice}</div>
@@ -604,6 +616,19 @@ function renderStatBar(): string {
 }
 
 function renderActions(): string {
+  if (state.phase === "reward" && !rewardScreenOpen) {
+    return `
+      <div class="actions">
+        <div class="buttons">
+          <button class="btn score" disabled>Score Hand${kbd("S")}</button>
+          <button class="btn reroll" data-act="show-rewards">Continue${kbd("R")}</button>
+        </div>
+        <div class="statusline">
+          <span class="deck">RED DECK · ${state.dice.length}/${state.dice.length} DICE</span>
+          <span class="muted">Round cleared — view rewards</span>
+        </div>
+      </div>`;
+  }
   const midTurn = state.turn !== null;
   const rerolls = state.turn?.rerollsRemaining ?? 0;
   // Score Hand is always its own button; Roll and Reroll always share the other
@@ -695,8 +720,8 @@ function renderSetupOverlay(): string {
     </div>`;
 }
 
-function renderRewardOverlay(): string {
-  if (state.phase !== "reward" || scoreSequencePending) return "";
+function renderRewardScreen(): string {
+  if (state.phase !== "reward" || scoreSequencePending || !rewardScreenOpen) return "";
   const nextRound = state.round + 1;
   const nextTarget = config.targetForRound(nextRound);
   const offers = state.rewardOffers
@@ -734,8 +759,7 @@ function renderRewardOverlay(): string {
       ? `<p class="muted">No card taken this round.</p>`
       : `<p>Card taken. You hold ${state.acquiredModifiers.length}/${config.cards.slots}.</p>`;
   return `
-    <div class="overlay">
-      <div class="modal">
+      <div class="modal reward-board-modal">
         <h2> Round ${state.round} cleared!</h2>
         <div class="next-target-preview">
           <span>NEXT ROUND ${nextRound} TARGET</span>
@@ -747,8 +771,7 @@ function renderRewardOverlay(): string {
           ${renderInscribeRow()}
         </div>
         <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue ${kbd("↵")} ${kbd("R")}</button>
-      </div>
-    </div>`;
+      </div>`;
 }
 
 function renderGameOverOverlay(): string {
@@ -780,13 +803,19 @@ function render(): void {
         <div class="roll-result-new">${currentDice}</div>
       </div>`
     : currentDice;
+  const boardContent = state.phase === "reward" && rewardScreenOpen
+    ? renderRewardScreen()
+    : `${renderStatBar()}
+       ${renderBigDice()}
+       ${renderScorePanel()}
+       ${renderActions()}`;
   app.innerHTML = `
     ${renderAnimToggle()}
     <div class="game${rollResultsPending ? " roll-results-pending" : ""}">
       <aside class="sidebar">
         <div class="logo">
           <div class="mark">▲</div>
-          <div class="title">POLYHEDRAL<span>roguelike dice</span></div>
+          <div class="title">dielatro<span>roguelike dice</span></div>
         </div>
         <div class="mods-title">ACTIVE MODIFIERS</div>
         <div class="mod-slots">${renderModSlots()}</div>
@@ -796,14 +825,10 @@ function render(): void {
         </section>
       </aside>
       <main class="board">
-        ${renderStatBar()}
-        ${renderBigDice()}
-        ${renderScorePanel()}
-        ${renderActions()}
+        ${boardContent}
       </main>
     </div>
     ${renderSetupOverlay()}
-    ${renderRewardOverlay()}
     ${renderGameOverOverlay()}
     ${renderInscribeOverlay()}`;
 }
@@ -897,7 +922,14 @@ app.addEventListener("click", (ev) => {
     }
     case "next-round":
       dispatch({ type: "nextRound" });
+      rewardScreenOpen = false;
       countUpTargetScore();
+      break;
+    case "show-rewards":
+      if (state.phase === "reward") {
+        rewardScreenOpen = true;
+        render();
+      }
       break;
     case "restart":
       if (scoreTimer !== null) clearInterval(scoreTimer);
@@ -916,6 +948,7 @@ app.addEventListener("click", (ev) => {
       cardSkipped = false;
       faceSkipped = false;
       started = false;
+      rewardScreenOpen = false;
       pendingInscribes = 1;
       previousRollState = null;
       rollResultsPending = false;
@@ -934,7 +967,7 @@ app.addEventListener("click", (ev) => {
 const shortcuts: Record<string, string[]> = {
   // Space / R press the shared Roll·Reroll button, whichever it currently is.
   " ": ["[data-act='reroll']", "[data-act='roll']"],
-  r: ["[data-act='start-run']", "[data-act='next-round']", "[data-act='restart']", "[data-act='reroll']", "[data-act='roll']"],
+  r: ["[data-act='start-run']", "[data-act='show-rewards']", "[data-act='next-round']", "[data-act='restart']", "[data-act='reroll']", "[data-act='roll']"],
   // S scores the hand mid-turn; during rewards it takes the 2nd offered card.
   s: ["[data-act='lockin']", ".offers .offer:nth-child(2)"],
   // A / D take the 1st / 3rd offered card.

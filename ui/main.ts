@@ -18,7 +18,9 @@ const config: Config = {
   dice: { startingCount: 1, cap: 3 },
   reroll: { budget: 2 },
   cards: { slots: 3, offerCount: 3 },
-  targetForRound: (round) => 6 + (round - 1) * 9, // 6, 15, 24, 33, ...
+  // Preserve the gentle opening (6, 15), then accelerate as card synergies
+  // come online: 6, 15, 30, 51, 78, 111, 150, ...
+  targetForRound: (round) => 6 + (round - 1) * 9 + 3 * (round - 1) * (round - 2),
   turnsPerRound: 4,
   rngStreams: ["dice", "rewards"],
   modifiers: cardRegistry,

@@ -296,17 +296,21 @@ function animateNewTurnRolls(previous: number, next: number): void {
   const label = field?.querySelector<HTMLElement>(".stat-label");
   if (!field || !label) return;
 
-  field.classList.add("new-turn");
-  field.querySelector<HTMLElement>(".pip-dot.spent")?.classList.add("just-spent");
-  label.textContent = `ROLLS LEFT ${previous}/${config.turnsPerRound}`;
-  label.classList.add("counter-changing");
+  field.classList.add("shake");
   window.setTimeout(() => {
-    label.textContent = `ROLLS LEFT ${next}/${config.turnsPerRound}`;
-  }, 600);
-  window.setTimeout(() => {
-    field.classList.remove("new-turn");
-    label.classList.remove("counter-changing");
-  }, 1250);
+    field.classList.remove("shake");
+    field.classList.add("new-turn");
+    field.querySelector<HTMLElement>(".pip-dot.spent")?.classList.add("just-spent");
+    label.textContent = `ROLLS LEFT ${previous}/${config.turnsPerRound}`;
+    label.classList.add("counter-changing");
+    window.setTimeout(() => {
+      label.textContent = `ROLLS LEFT ${next}/${config.turnsPerRound}`;
+    }, 600);
+    window.setTimeout(() => {
+      field.classList.remove("new-turn");
+      label.classList.remove("counter-changing");
+    }, 1250);
+  }, 340);
 }
 
 function countUpTargetScore(): void {

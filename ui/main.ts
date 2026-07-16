@@ -130,8 +130,8 @@ const SIDE_TO_FRONT = [
   "rotateY(-180deg)", // back
   "rotateY(-90deg)", // right
   "rotateY(90deg)", // left
-  "rotateX(90deg)", // top
-  "rotateX(-90deg)", // bottom
+  "rotateX(-90deg)", // top
+  "rotateX(90deg)", // bottom
 ];
 
 /** Parse "5,,3,,," → [5, null, 3, null, null, null] (blanks are empty entries). */
@@ -680,7 +680,7 @@ function renderRewardOverlay(): string {
           <p class="section-title">Add a face to your die</p>
           ${renderInscribeRow()}
         </div>
-        <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue ${kbd("↵")}</button>
+        <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue ${kbd("↵")} ${kbd("R")}</button>
       </div>
     </div>`;
 }
@@ -877,7 +877,7 @@ app.addEventListener("click", (ev) => {
 const shortcuts: Record<string, string[]> = {
   // Space / R press the shared Roll·Reroll button, whichever it currently is.
   " ": ["[data-act='reroll']", "[data-act='roll']"],
-  r: ["[data-act='start-run']", "[data-act='reroll']", "[data-act='roll']"],
+  r: ["[data-act='start-run']", "[data-act='next-round']", "[data-act='reroll']", "[data-act='roll']"],
   // S scores the hand mid-turn; during rewards it takes the 2nd offered card.
   s: ["[data-act='lockin']", ".offers .offer:nth-child(2)"],
   // A / D take the 1st / 3rd offered card.

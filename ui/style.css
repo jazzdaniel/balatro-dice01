@@ -149,6 +149,18 @@ body {
 .current-num.counting, .hand.counting {
   text-shadow: 0 0 12px currentColor;
 }
+.hand.sad-zero {
+  animation: sad-zero-blink 0.38s ease-in-out 2;
+}
+@keyframes sad-zero-blink {
+  0%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+  50% {
+    opacity: 0.22;
+    color: var(--mult);
+    transform: translateY(3px) scale(0.82);
+    text-shadow: 0 0 8px rgba(224, 80, 58, 0.45);
+  }
+}
 
 /* Round-win celebration, started only after the score transfer completes. */
 .confetti {
@@ -160,15 +172,15 @@ body {
   width: 10px; height: 16px; border-radius: 2px;
   background: var(--gold); opacity: 0;
 }
-.confetti i:nth-child(6n + 1) { background: var(--gold); }
+.confetti i:nth-child(6n + 1) { background: var(--felt-dark); }
 .confetti i:nth-child(6n + 2) { background: var(--chips); }
-.confetti i:nth-child(6n + 3) { background: var(--mult); }
+.confetti i:nth-child(6n + 3) { background: var(--ink); }
 .confetti i:nth-child(6n + 4) { background: var(--text); }
 .confetti i:nth-child(6n + 5) { background: var(--felt); }
-.confetti i:nth-child(6n) { background: var(--panel-2); }
+.confetti i:nth-child(6n) { background: var(--slot); }
 .confetti i:nth-child(4n) { width: 7px; height: 11px; }
 .confetti.active i {
-  animation: confetti-fall 1.35s cubic-bezier(0.16, 0.72, 0.3, 1) var(--delay) forwards;
+  animation: confetti-fall 1.6s cubic-bezier(0.16, 0.72, 0.3, 1) var(--delay) forwards;
 }
 @keyframes confetti-fall {
   0% { opacity: 1; transform: translate3d(0, -20px, 0) rotate(0deg); }
@@ -276,7 +288,7 @@ body {
 /* While the 3D cube is on, drop the flat die's background + bevel so only the
    cube shows (otherwise the die's own square sits behind it like a border). */
 .bigdie.cube-active {
-  background: none;
+  background: transparent;
   box-shadow: none;
 }
 .bigdie-face.cube-mode {
@@ -296,24 +308,38 @@ body {
   transform: translateZ(calc(var(--half) * -1)) rotateX(-14deg) rotateY(16deg) var(--face-to-front);
 }
 .cube-face {
-  position: absolute; inset: 0;
+  --stain-x: 28%; --stain-y: 72%; --scratch-angle: 24deg;
+  position: absolute; inset: -1px;
   display: flex; align-items: center; justify-content: center;
   padding: 10px;
-  border-radius: 12px;
-  background: linear-gradient(150deg, #f7e6a8 0%, #eecf7f 100%);
+  border: 1px solid rgba(116, 82, 25, 0.5);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at var(--stain-x) var(--stain-y), transparent 0 11px, rgba(91, 48, 20, 0.22) 12px 14px, transparent 15px),
+    radial-gradient(ellipse at calc(var(--stain-x) + 18%) calc(var(--stain-y) - 24%), rgba(112, 67, 24, 0.18) 0 5px, transparent 10px),
+    linear-gradient(150deg, #f7e6a8 0%, #eecf7f 100%);
   box-shadow:
     inset 4px 4px 0 rgba(255, 255, 255, 0.55),
-    inset -5px -5px 0 rgba(120, 88, 24, 0.4);
+    inset -5px -5px 0 rgba(120, 88, 24, 0.4),
+    0 0 1px 1px #c69f50;
   backface-visibility: hidden;
+  overflow: hidden;
 }
-.cube-face .pip-grid { width: 100%; height: 100%; }
+.cube-face::after {
+  content: ""; position: absolute; inset: 8px; pointer-events: none;
+  background:
+    linear-gradient(var(--scratch-angle), transparent 47%, rgba(91, 65, 31, 0.28) 49% 51%, transparent 53%) 12% 18% / 31px 8px no-repeat,
+    linear-gradient(calc(var(--scratch-angle) + 37deg), transparent 47%, rgba(255,255,255,0.24) 49% 51%, transparent 53%) 76% 77% / 22px 7px no-repeat;
+  mix-blend-mode: multiply;
+}
+.cube-face .pip-grid { position: relative; z-index: 1; width: 100%; height: 100%; }
 .cube-face .bigpip { width: 20px; height: 20px; }
-.cf-front  { transform: rotateY(0deg)    translateZ(var(--half)); }
-.cf-back   { transform: rotateY(180deg)  translateZ(var(--half)); }
-.cf-right  { transform: rotateY(90deg)   translateZ(var(--half)); }
-.cf-left   { transform: rotateY(-90deg)  translateZ(var(--half)); }
-.cf-top    { transform: rotateX(90deg)   translateZ(var(--half)); }
-.cf-bottom { transform: rotateX(-90deg)  translateZ(var(--half)); }
+.cf-front  { --stain-x: 24%; --stain-y: 76%; --scratch-angle: 18deg; transform: rotateY(0deg) translateZ(var(--half)); }
+.cf-back   { --stain-x: 72%; --stain-y: 28%; --scratch-angle: 61deg; transform: rotateY(180deg) translateZ(var(--half)); }
+.cf-right  { --stain-x: 35%; --stain-y: 22%; --scratch-angle: -16deg; transform: rotateY(90deg) translateZ(var(--half)); }
+.cf-left   { --stain-x: 78%; --stain-y: 68%; --scratch-angle: 42deg; transform: rotateY(-90deg) translateZ(var(--half)); }
+.cf-top    { --stain-x: 63%; --stain-y: 78%; --scratch-angle: 8deg; transform: rotateX(90deg) translateZ(var(--half)); }
+.cf-bottom { --stain-x: 20%; --stain-y: 35%; --scratch-angle: 73deg; transform: rotateX(-90deg) translateZ(var(--half)); }
 @keyframes cube-tumble {
   0%   { transform: translateZ(calc(var(--half) * -1)) rotateX(0deg)   rotateY(0deg); }
   100% { transform: translateZ(calc(var(--half) * -1)) rotateX(720deg) rotateY(900deg); }
@@ -321,7 +347,7 @@ body {
 .dice-cube.rolling { animation: cube-tumble 0.95s cubic-bezier(0.25, 0.7, 0.25, 1) forwards; }
 /* On settle we transition from the tumble's end pose to the resting pose above,
    which now points the landed face (--face-to-front) at the camera. */
-.dice-cube.settled { transition: transform 0.28s ease-out; }
+.dice-cube.landing { transition: transform 0.5s cubic-bezier(0.16, 0.78, 0.24, 1); }
 
 /* ── Dev toggle: A/B the roll animations ──────────────────────────────────── */
 .anim-toggle {

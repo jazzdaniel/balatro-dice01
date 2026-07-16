@@ -81,6 +81,7 @@ let rollTimer: ReturnType<typeof setInterval> | null = null;
 let rollResultsPending = false;
 let previousRollState: GameState | null = null;
 let scoreTimer: ReturnType<typeof setInterval> | null = null;
+let handCountTimer: ReturnType<typeof setInterval> | null = null;
 let scoreSequencePending = false;
 let celebrateRoundWin = false;
 let celebrationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -174,16 +175,37 @@ function cube3dRoll(dice: HTMLElement[], onComplete: () => void): void {
     faceEl.innerHTML = cubeMarkup(parseFaces(d.dataset.faces ?? ""));
   }
   rollTimer = setTimeout(() => {
-    rollTimer = null;
     for (const d of dice) {
       const cube = d.querySelector<HTMLElement>(".dice-cube");
       if (!cube) continue;
       const rolled = d.dataset.rolled ? Number(d.dataset.rolled) : 0;
-      cube.style.setProperty("--face-to-front", SIDE_TO_FRONT[rolled] ?? SIDE_TO_FRONT[0]!);
+      const front = SIDE_TO_FRONT[rolled] ?? SIDE_TO_FRONT[0]!;
+      // Freeze the exact final tumble pose before removing its animation. On
+      // the next frame, ease from that pose into the landed face so there is no
+      // one-frame snap between rolling and resting.
+      cube.style.animation = "none";
+      cube.style.transform = "translateZ(calc(var(--half) * -1)) rotateX(720deg) rotateY(900deg)";
       cube.classList.remove("rolling");
-      cube.classList.add("settled");
+      cube.classList.add("landing");
+      void cube.offsetWidth;
+      requestAnimationFrame(() => {
+        cube.style.transform = `translateZ(calc(var(--half) * -1)) rotateX(-14deg) rotateY(16deg) ${front}`;
+      });
     }
-    onComplete();
+    rollTimer = window.setTimeout(() => {
+      rollTimer = null;
+      for (const d of dice) {
+        const cube = d.querySelector<HTMLElement>(".dice-cube");
+        if (!cube) continue;
+        const rolled = d.dataset.rolled ? Number(d.dataset.rolled) : 0;
+        cube.style.setProperty("--face-to-front", SIDE_TO_FRONT[rolled] ?? SIDE_TO_FRONT[0]!);
+        cube.classList.remove("landing");
+        cube.classList.add("settled");
+        cube.style.removeProperty("animation");
+        cube.style.removeProperty("transform");
+      }
+      onComplete();
+    }, 520);
   }, duration);
 }
 
@@ -201,9 +223,40 @@ function revealRollResults(): void {
   const game = document.querySelector(".game");
   game?.classList.remove("roll-results-pending");
   game?.classList.add("roll-results-revealing");
+  countUpHandPreview();
   window.setTimeout(() => {
     previousRollState = null;
   }, 280);
+}
+
+/** Count the newly rolled hand up from zero, accelerating for larger totals. */
+function countUpHandPreview(): void {
+  const handScore = state.turn ? getScorePreview(state).total : 0;
+  const handEl = document.querySelector<HTMLElement>(".roll-result-new .hand");
+  if (!handEl || !handEl.firstChild) return;
+  if (handScore <= 0) {
+    handEl.classList.add("sad-zero");
+    handEl.addEventListener("animationend", () => handEl.classList.remove("sad-zero"), { once: true });
+    return;
+  }
+
+  if (handCountTimer !== null) clearInterval(handCountTimer);
+  let shown = 0;
+  handEl.firstChild.textContent = "0";
+  handEl.classList.add("counting");
+
+  // Single-digit hands linger on every point. The interval curves down as the
+  // total grows, so large hands still count every integer without dragging.
+  const tickMs = Math.max(12, Math.min(120, Math.round(120 / Math.sqrt(Math.max(1, handScore / 9)))));
+  handCountTimer = window.setInterval(() => {
+    shown += 1;
+    handEl.firstChild!.textContent = fmt(shown);
+    if (shown >= handScore) {
+      clearInterval(handCountTimer!);
+      handCountTimer = null;
+      handEl.classList.remove("counting");
+    }
+  }, tickMs);
 }
 
 function playRollAnimation(revealResults = false): void {
@@ -239,6 +292,8 @@ function finishScoreSequence(): void {
 
 function scoreHand(): void {
   if (!state.turn) return;
+  if (handCountTimer !== null) clearInterval(handCountTimer);
+  handCountTimer = null;
   const startingScore = state.roundScore;
   const handScore = getScorePreview(state).total;
   const reachesTarget = startingScore + handScore >= state.targetScore;
@@ -262,7 +317,7 @@ function scoreHand(): void {
 
   // Small hands count deliberately; large hands accelerate without skipping
   // any displayed integer.
-  const tickMs = Math.max(8, Math.min(40, Math.floor(900 / handScore)));
+  const tickMs = Math.max(16, Math.min(65, Math.floor(1600 / handScore)));
   scoreTimer = window.setInterval(() => {
     transferred += 1;
     currentEl.textContent = fmt(startingScore + transferred);
@@ -575,7 +630,7 @@ function renderSetupOverlay(): string {
         <h2>Build your die</h2>
         <p>Your die begins with a single inscribed face. Choose it, or skip to start with a blank die.</p>
         ${renderInscribeRow()}
-        <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")}</button>
+        <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")} ${kbd("R")}</button>
       </div>
     </div>`;
 }
@@ -792,6 +847,8 @@ app.addEventListener("click", (ev) => {
     case "restart":
       if (scoreTimer !== null) clearInterval(scoreTimer);
       scoreTimer = null;
+      if (handCountTimer !== null) clearInterval(handCountTimer);
+      handCountTimer = null;
       if (celebrationTimer !== null) clearTimeout(celebrationTimer);
       celebrationTimer = null;
       scoreSequencePending = false;
@@ -820,7 +877,7 @@ app.addEventListener("click", (ev) => {
 const shortcuts: Record<string, string[]> = {
   // Space / R press the shared Roll·Reroll button, whichever it currently is.
   " ": ["[data-act='reroll']", "[data-act='roll']"],
-  r: ["[data-act='reroll']", "[data-act='roll']"],
+  r: ["[data-act='start-run']", "[data-act='reroll']", "[data-act='roll']"],
   // S scores the hand mid-turn; during rewards it takes the 2nd offered card.
   s: ["[data-act='lockin']", ".offers .offer:nth-child(2)"],
   // A / D take the 1st / 3rd offered card.

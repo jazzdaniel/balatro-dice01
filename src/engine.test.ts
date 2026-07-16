@@ -141,6 +141,17 @@ describe("cards (modifier economy)", () => {
     expect(getScorePreview(turnShowing(state, 5))?.total).toBe(0);
   });
 
+  it("Rainbow counts distinct inscribed faces regardless of the rolled face", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    for (const [faceIndex, value] of ([1, 2, 3] as FaceValue[]).entries()) {
+      state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex, value });
+    }
+    state = { ...state, acquiredModifiers: ["rainbow"] };
+    // Three distinct inscriptions always give +6 Mult, even when a blank lands.
+    expect(getScorePreview(turnShowing(state, 5))?.mult).toBe(7);
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(7);
+  });
+
   it("Blank Check scores each held blank only when a blank is rolled", () => {
     let state = createInitialState("seed-1", cardConfig);
     state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 4 });

@@ -51,21 +51,21 @@ const oddball: Modifier = {
   },
 };
 
-/** +2 Mult per distinct value showing. Weak solo; shines as dice are added. */
+/** +2 Mult per distinct value inscribed across the dice, regardless of roll. */
 const rainbow: Modifier = {
   id: "rainbow",
   name: "Rainbow",
-  description: "+2 Mult per distinct value showing (shines with more dice).",
+  description: "+2 Mult per distinct value inscribed on your dice.",
   phase: "onFinal",
   apply: (ctx) => {
-    const distinct = new Set(ctx.faces.filter((v) => v !== null));
+    const distinct = new Set(ctx.dieFaces.flat().filter((v) => v !== null));
     if (distinct.size === 0) return ctx;
     const amount = distinct.size * 2;
     return addStep({ ...ctx, mult: ctx.mult + amount }, {
       source: "Rainbow",
       kind: "mult",
       amount,
-      note: `${distinct.size} distinct`,
+      note: `${distinct.size} distinct inscriptions`,
     });
   },
 };

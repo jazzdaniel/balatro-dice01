@@ -146,6 +146,35 @@ body {
 .label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .target-num { font-size: 34px; font-weight: 800; color: var(--mult); line-height: 1.1; }
 .current-num { font-size: 34px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+.current-num.counting, .hand.counting {
+  text-shadow: 0 0 12px currentColor;
+}
+
+/* Round-win celebration, started only after the score transfer completes. */
+.confetti {
+  position: fixed; inset: 0; z-index: 30;
+  overflow: hidden; pointer-events: none;
+}
+.confetti i {
+  position: absolute; left: var(--x); top: -18px;
+  width: 10px; height: 16px; border-radius: 2px;
+  background: var(--gold); opacity: 0;
+}
+.confetti i:nth-child(6n + 1) { background: var(--gold); }
+.confetti i:nth-child(6n + 2) { background: var(--chips); }
+.confetti i:nth-child(6n + 3) { background: var(--mult); }
+.confetti i:nth-child(6n + 4) { background: var(--text); }
+.confetti i:nth-child(6n + 5) { background: var(--felt); }
+.confetti i:nth-child(6n) { background: var(--panel-2); }
+.confetti i:nth-child(4n) { width: 7px; height: 11px; }
+.confetti.active i {
+  animation: confetti-fall 1.35s cubic-bezier(0.16, 0.72, 0.3, 1) var(--delay) forwards;
+}
+@keyframes confetti-fall {
+  0% { opacity: 1; transform: translate3d(0, -20px, 0) rotate(0deg); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--drift), 105vh, 0) rotate(var(--spin)); }
+}
 .blindtag {
   display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
   color: var(--ink); background: var(--mult); padding: 2px 8px; border-radius: 6px;
@@ -158,6 +187,18 @@ body {
 }
 .chipmult > div { text-align: center; }
 .chipmult span { display: block; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); margin-top: 2px; }
+.roll-result-stack { display: grid; }
+.roll-result-stack > .roll-result-old,
+.roll-result-stack > .roll-result-new {
+  grid-area: 1 / 1;
+  transition: opacity 0.28s ease;
+}
+.roll-result-stack > .roll-result-old { opacity: 1; }
+.roll-result-stack > .roll-result-new { opacity: 0; }
+.roll-results-revealing .roll-result-stack > .roll-result-old { opacity: 0; }
+.roll-results-revealing .roll-result-stack > .roll-result-new { opacity: 1; }
+.chipmult-stack { grid-column: 1 / -1; }
+.chipmult-stack .chipmult { height: 100%; box-sizing: border-box; }
 .chips { font-size: 30px; font-weight: 800; color: var(--chips); }
 .mult { font-size: 30px; font-weight: 800; color: var(--mult); }
 .hand { font-size: 30px; font-weight: 800; color: var(--gold); }

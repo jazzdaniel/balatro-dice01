@@ -76,12 +76,18 @@ function dispatch(action: Action): void {
 // but must end with each die showing renderPips(data-value) — the engine has
 // already committed the result; the animation is decoration over it. No cleanup
 // is needed because the next render() rebuilds the whole board from scratch.
-type RollAnimation = (dice: HTMLElement[]) => void;
+type RollAnimation = (dice: HTMLElement[], onComplete: () => void) => void;
 let rollTimer: ReturnType<typeof setInterval> | null = null;
+let rollResultsPending = false;
+let previousRollState: GameState | null = null;
+let scoreTimer: ReturnType<typeof setInterval> | null = null;
+let scoreSequencePending = false;
+let celebrateRoundWin = false;
+let celebrationTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Variant "pip-flicker": the original. Dice flicker through random faces (with a
 // shake) for a short spell, then settle on the committed value.
-function pipFlickerRoll(dice: HTMLElement[]): void {
+function pipFlickerRoll(dice: HTMLElement[], onComplete: () => void): void {
   dice.forEach((d) => d.classList.add("rolling"));
   const step = 70;
   const duration = 640;
@@ -107,6 +113,7 @@ function pipFlickerRoll(dice: HTMLElement[]): void {
         if (face) face.innerHTML = renderPips(value);
         setTimeout(() => d.classList.remove("settle"), 240);
       }
+      onComplete();
     }
   }, step);
 }
@@ -156,7 +163,7 @@ function cubeMarkup(faces: (number | null)[]): string {
 // carrying that face's real value (or blankness) — tumbles through space, then
 // settles by rotating the face that actually landed toward the camera.
 // (Adapted from the React FACE_TRANSFORMS prototype.)
-function cube3dRoll(dice: HTMLElement[]): void {
+function cube3dRoll(dice: HTMLElement[], onComplete: () => void): void {
   const duration = 950;
   for (const d of dice) {
     const faceEl = d.querySelector<HTMLElement>(".bigdie-face");
@@ -176,6 +183,7 @@ function cube3dRoll(dice: HTMLElement[]): void {
       cube.classList.remove("rolling");
       cube.classList.add("settled");
     }
+    onComplete();
   }, duration);
 }
 
@@ -188,12 +196,85 @@ const DEFAULT_ANIM = ANIM_NAMES[0] ?? "pip-flicker";
 const savedAnim = localStorage.getItem("rollAnim");
 let activeAnim: string = savedAnim && ROLL_ANIMATIONS[savedAnim] ? savedAnim : DEFAULT_ANIM;
 
-function playRollAnimation(): void {
+function revealRollResults(): void {
+  rollResultsPending = false;
+  const game = document.querySelector(".game");
+  game?.classList.remove("roll-results-pending");
+  game?.classList.add("roll-results-revealing");
+  window.setTimeout(() => {
+    previousRollState = null;
+  }, 280);
+}
+
+function playRollAnimation(revealResults = false): void {
   if (rollTimer !== null) clearInterval(rollTimer);
   rollTimer = null;
   const dice = Array.from(document.querySelectorAll<HTMLElement>(".bigdie"));
-  if (dice.length === 0) return;
-  (ROLL_ANIMATIONS[activeAnim] ?? ROLL_ANIMATIONS[DEFAULT_ANIM]!)(dice);
+  if (dice.length === 0) {
+    if (revealResults) revealRollResults();
+    return;
+  }
+  (ROLL_ANIMATIONS[activeAnim] ?? ROLL_ANIMATIONS[DEFAULT_ANIM]!)(
+    dice,
+    revealResults ? revealRollResults : () => {},
+  );
+}
+
+/** Move a scored hand into the round total one point at a time. */
+function finishScoreSequence(): void {
+  if (!scoreSequencePending) return;
+  if (celebrateRoundWin) {
+    document.querySelector(".confetti")?.classList.add("active");
+    celebrationTimer = window.setTimeout(() => {
+      celebrationTimer = null;
+      scoreSequencePending = false;
+      celebrateRoundWin = false;
+      render();
+    }, 1500);
+  } else {
+    scoreSequencePending = false;
+    render();
+  }
+}
+
+function scoreHand(): void {
+  if (!state.turn) return;
+  const startingScore = state.roundScore;
+  const handScore = getScorePreview(state).total;
+  const reachesTarget = startingScore + handScore >= state.targetScore;
+  scoreSequencePending = reachesTarget || state.turnsRemaining <= 1;
+  celebrateRoundWin = reachesTarget;
+  dispatch({ type: "lockIn" });
+
+  const currentEl = document.querySelector<HTMLElement>(".current-num");
+  const handEl = document.querySelector<HTMLElement>(".hand");
+  if (!currentEl || !handEl || handScore <= 0) {
+    finishScoreSequence();
+    return;
+  }
+
+  if (scoreTimer !== null) clearInterval(scoreTimer);
+  let transferred = 0;
+  currentEl.textContent = fmt(startingScore);
+  if (handEl.firstChild) handEl.firstChild.textContent = fmt(handScore);
+  currentEl.classList.add("counting");
+  handEl.classList.add("counting");
+
+  // Small hands count deliberately; large hands accelerate without skipping
+  // any displayed integer.
+  const tickMs = Math.max(8, Math.min(40, Math.floor(900 / handScore)));
+  scoreTimer = window.setInterval(() => {
+    transferred += 1;
+    currentEl.textContent = fmt(startingScore + transferred);
+    if (handEl.firstChild) handEl.firstChild.textContent = fmt(handScore - transferred);
+    if (transferred >= handScore) {
+      clearInterval(scoreTimer!);
+      scoreTimer = null;
+      currentEl.classList.remove("counting");
+      handEl.classList.remove("counting");
+      finishScoreSequence();
+    }
+  }, tickMs);
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────────
@@ -244,8 +325,8 @@ function renderModSlots(): string {
 }
 
 /** The board die — display only. Faces are inscribed between rounds, not here. */
-function renderDie(die: Die, dieIdx: number): string {
-  const rolledFace = state.turn?.roll.find((r) => r.dieId === die.id)?.faceIndex ?? null;
+function renderDie(die: Die, dieIdx: number, viewState: GameState = state): string {
+  const rolledFace = viewState.turn?.roll.find((r) => r.dieId === die.id)?.faceIndex ?? null;
   const tiles = die.faces
     .map((f, i) => {
       const blank = f.value === null;
@@ -432,10 +513,26 @@ function renderActions(): string {
 }
 
 function renderScorePanel(): string {
-  const bd = state.turn ? getScorePreview(state) : null;
+  const renderChipMult = (viewState: GameState): string => {
+  const bd = viewState.turn ? getScorePreview(viewState) : null;
   const chips = bd ? bd.sum + bd.add : 0;
   const mult = bd ? bd.mult : 1;
   const handScore = bd ? bd.total : 0;
+  return `
+      <div class="chipmult">
+        <div class="chips">${fmt(chips)}<span>CHIPS</span></div>
+        <div class="times">×</div>
+        <div class="mult">${fmt(mult)}<span>MULT</span></div>
+        <div class="eq">=</div>
+        <div class="hand">${fmt(handScore)}<span>THIS HAND</span></div>
+      </div>`;
+  };
+  const chipMult = previousRollState
+    ? `<div class="roll-result-stack chipmult-stack">
+        <div class="roll-result-old">${renderChipMult(previousRollState)}</div>
+        <div class="roll-result-new">${renderChipMult(state)}</div>
+      </div>`
+    : renderChipMult(state);
   return `
     <div class="scorepanel">
       <div class="targetbox">
@@ -447,13 +544,7 @@ function renderScorePanel(): string {
         <div class="label">Current Score</div>
         <div class="current-num">${fmt(state.roundScore)}</div>
       </div>
-      <div class="chipmult">
-        <div class="chips">${fmt(chips)}<span>CHIPS</span></div>
-        <div class="times">×</div>
-        <div class="mult">${fmt(mult)}<span>MULT</span></div>
-        <div class="eq">=</div>
-        <div class="hand">${fmt(handScore)}<span>THIS HAND</span></div>
-      </div>
+      ${chipMult}
     </div>`;
 }
 
@@ -490,7 +581,7 @@ function renderSetupOverlay(): string {
 }
 
 function renderRewardOverlay(): string {
-  if (state.phase !== "reward") return "";
+  if (state.phase !== "reward" || scoreSequencePending) return "";
   const offers = state.rewardOffers
     .map((o, i) => {
       const id = o.modifierId ?? o.id;
@@ -540,7 +631,7 @@ function renderRewardOverlay(): string {
 }
 
 function renderGameOverOverlay(): string {
-  if (state.phase !== "gameOver") return "";
+  if (state.phase !== "gameOver" || scoreSequencePending) return "";
   return `
     <div class="overlay">
       <div class="modal">
@@ -560,10 +651,28 @@ function renderAnimToggle(): string {
             title="Toggle roll animation">🎲 ${activeAnim}</button>`;
 }
 
+function renderConfetti(): string {
+  const pieces = Array.from({ length: 72 }, (_, i) => {
+    const left = (i * 37) % 101;
+    const delay = (i * 29) % 420;
+    const drift = ((i * 53) % 240) - 120;
+    const spin = 360 + ((i * 71) % 720);
+    return `<i style="--x:${left}vw;--delay:${delay}ms;--drift:${drift}px;--spin:${spin}deg"></i>`;
+  }).join("");
+  return `<div class="confetti" aria-hidden="true">${pieces}</div>`;
+}
+
 function render(): void {
+  const currentDice = state.dice.map((d, i) => renderDie(d, i)).join("");
+  const secondaryDice = previousRollState
+    ? `<div class="roll-result-stack dice-result-stack">
+        <div class="roll-result-old">${previousRollState.dice.map((d, i) => renderDie(d, i, previousRollState!)).join("")}</div>
+        <div class="roll-result-new">${currentDice}</div>
+      </div>`
+    : currentDice;
   app.innerHTML = `
     ${renderAnimToggle()}
-    <div class="game">
+    <div class="game${rollResultsPending ? " roll-results-pending" : ""}">
       <aside class="sidebar">
         <div class="logo">
           <div class="mark">▲</div>
@@ -573,7 +682,7 @@ function render(): void {
         <div class="mod-slots">${renderModSlots()}</div>
         <section class="dice-secondary">
           <div class="secondary-title">YOUR DIE · FACES</div>
-          ${state.dice.map((d, i) => renderDie(d, i)).join("")}
+          ${secondaryDice}
         </section>
       </aside>
       <main class="board">
@@ -586,7 +695,8 @@ function render(): void {
     ${renderSetupOverlay()}
     ${renderRewardOverlay()}
     ${renderGameOverOverlay()}
-    ${renderInscribeOverlay()}`;
+    ${renderInscribeOverlay()}
+    ${celebrateRoundWin ? renderConfetti() : ""}`;
 }
 
 // ── Event handling (delegated) ────────────────────────────────────────────────
@@ -607,22 +717,26 @@ app.addEventListener("click", (ev) => {
       break;
     }
     case "roll":
+      previousRollState = state;
+      rollResultsPending = true;
       dispatch({ type: "roll" });
-      playRollAnimation();
+      playRollAnimation(true);
       break;
     case "reroll":
+      previousRollState = state;
+      rollResultsPending = true;
       dispatch({ type: "reroll", held: [] });
-      playRollAnimation();
+      playRollAnimation(true);
       // Re-render just replaced the box; flash the fresh one to signal the burn.
       document.querySelector(".rerolls")?.classList.add("shake");
       // No rerolls left means there's nothing left to decide — after the roll
       // animation lands so the final face is visible, score the hand automatically.
       if (state.turn && state.turn.rerollsRemaining <= 0) {
-        window.setTimeout(() => dispatch({ type: "lockIn" }), 1050);
+        window.setTimeout(scoreHand, 1050);
       }
       break;
     case "lockin":
-      dispatch({ type: "lockIn" });
+      scoreHand();
       // If the round continues, flash the rolls-left box to mark the spent roll.
       document.querySelector(".rolls-left")?.classList.add("shake");
       break;
@@ -676,6 +790,12 @@ app.addEventListener("click", (ev) => {
       dispatch({ type: "nextRound" });
       break;
     case "restart":
+      if (scoreTimer !== null) clearInterval(scoreTimer);
+      scoreTimer = null;
+      if (celebrationTimer !== null) clearTimeout(celebrationTimer);
+      celebrationTimer = null;
+      scoreSequencePending = false;
+      celebrateRoundWin = false;
       state = createInitialState(freshSeed(), config);
       inscribing = null;
       pendingDiscardOffer = null;
@@ -683,6 +803,8 @@ app.addEventListener("click", (ev) => {
       faceSkipped = false;
       started = false;
       pendingInscribes = 1;
+      previousRollState = null;
+      rollResultsPending = false;
       render();
       break;
   }

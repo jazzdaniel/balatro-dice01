@@ -17,7 +17,20 @@ npm test          # run the Vitest suite
 npm run test:watch
 npm run typecheck # tsc --noEmit
 npm run build     # emit dist/ (ESM + .d.ts) via tsup
+npm run play-ui   # run the playable UI locally
+npm run build-ui  # build the playable UI into dist-ui/
 ```
+
+## Deploy the playable UI to Vercel
+
+The repository includes `vercel.json`, which tells Vercel to build the Vite UI
+with `npm run build-ui` and publish `dist-ui/`. Import the repository with its
+Root Directory set to the repository root, then deploy. Existing Vercel project
+overrides should either be disabled or match these values:
+
+- Framework Preset: Vite
+- Build Command: `npm run build-ui`
+- Output Directory: `dist-ui`
 
 ## Shape
 

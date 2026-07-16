@@ -162,30 +162,37 @@ body {
   }
 }
 
-/* Round-win celebration, started only after the score transfer completes. */
-.confetti {
-  position: fixed; inset: 0; z-index: 30;
-  overflow: hidden; pointer-events: none;
+/* Compact round-win burst focused on the die and the earned score. */
+.bigdice-area, .currentbox { position: relative; }
+.win-celebrating .bigdie { animation: win-die-pop 0.7s cubic-bezier(0.16, 0.8, 0.25, 1) 2; }
+.win-celebrating .currentbox { animation: win-score-box 0.7s ease-in-out 2; }
+.win-celebrating .current-num { animation: win-score-number 0.7s ease-in-out 2; }
+.win-celebrating .bigdice-area::before,
+.win-celebrating .currentbox::before {
+  content: "✦  ·  ✦  ·  ✦";
+  position: absolute; left: 50%; top: 50%; z-index: 4;
+  width: 260px; text-align: center; pointer-events: none;
+  color: var(--gold); font-size: 24px; letter-spacing: 14px;
+  text-shadow: -55px 28px 0 var(--chips), 58px -25px 0 var(--mult);
+  animation: win-spark-burst 0.72s ease-out 2;
 }
-.confetti i {
-  position: absolute; left: var(--x); top: -18px;
-  width: 10px; height: 16px; border-radius: 2px;
-  background: var(--gold); opacity: 0;
+.win-celebrating .currentbox::before { width: 190px; font-size: 18px; letter-spacing: 8px; }
+@keyframes win-die-pop {
+  0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  45% { transform: translateY(-10px) scale(1.09); filter: brightness(1.2) drop-shadow(0 0 16px var(--gold)); }
 }
-.confetti i:nth-child(6n + 1) { background: var(--felt-dark); }
-.confetti i:nth-child(6n + 2) { background: var(--chips); }
-.confetti i:nth-child(6n + 3) { background: var(--ink); }
-.confetti i:nth-child(6n + 4) { background: var(--text); }
-.confetti i:nth-child(6n + 5) { background: var(--felt); }
-.confetti i:nth-child(6n) { background: var(--slot); }
-.confetti i:nth-child(4n) { width: 7px; height: 11px; }
-.confetti.active i {
-  animation: confetti-fall 1.6s cubic-bezier(0.16, 0.72, 0.3, 1) var(--delay) forwards;
+@keyframes win-score-box {
+  0%, 100% { border-color: var(--line); box-shadow: none; }
+  50% { border-color: var(--gold); box-shadow: 0 0 24px rgba(242, 193, 78, 0.65), inset 0 0 18px rgba(242, 193, 78, 0.12); }
 }
-@keyframes confetti-fall {
-  0% { opacity: 1; transform: translate3d(0, -20px, 0) rotate(0deg); }
-  85% { opacity: 1; }
-  100% { opacity: 0; transform: translate3d(var(--drift), 105vh, 0) rotate(var(--spin)); }
+@keyframes win-score-number {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.22); text-shadow: 0 0 18px currentColor; }
+}
+@keyframes win-spark-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.45) rotate(8deg); }
 }
 .blindtag {
   display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700;
@@ -261,8 +268,11 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-size: 68px; font-weight: 800; color: rgba(43, 47, 60, 0.28);
 }
-/* In cube mode the resting cube is the visual, so skip the flat "?" overlay. */
-.bigdie.pristine .bigdie-face.cube-mode::after { content: none; }
+/* In cube mode, the actual die slowly turns while idle instead of showing the
+   flat face's question-mark prompt. */
+.bigdie.pristine .bigdie-face.cube-mode::after {
+  content: none;
+}
 .bigdice-caption {
   font-size: 12px; letter-spacing: 2px; font-weight: 700;
   color: var(--gold); text-transform: uppercase;
@@ -315,8 +325,11 @@ body {
   border: 1px solid rgba(116, 82, 25, 0.5);
   border-radius: 8px;
   background:
-    radial-gradient(circle at var(--stain-x) var(--stain-y), transparent 0 11px, rgba(91, 48, 20, 0.22) 12px 14px, transparent 15px),
-    radial-gradient(ellipse at calc(var(--stain-x) + 18%) calc(var(--stain-y) - 24%), rgba(112, 67, 24, 0.18) 0 5px, transparent 10px),
+    radial-gradient(ellipse 15px 10px at var(--stain-x) var(--stain-y), rgba(91, 48, 20, 0.2) 0 48%, rgba(91, 48, 20, 0.1) 68%, transparent 76%),
+    radial-gradient(ellipse 5px 11px at calc(var(--stain-x) + 9%) calc(var(--stain-y) + 8%), rgba(91, 48, 20, 0.14) 0 48%, transparent 76%),
+    radial-gradient(circle 3px at calc(var(--stain-x) + 17%) calc(var(--stain-y) - 8%), rgba(112, 67, 24, 0.2) 0 55%, transparent 72%),
+    radial-gradient(circle 2px at calc(var(--stain-x) - 12%) calc(var(--stain-y) + 14%), rgba(112, 67, 24, 0.18) 0 55%, transparent 74%),
+    radial-gradient(ellipse at calc(var(--stain-x) + 18%) calc(var(--stain-y) - 24%), rgba(112, 67, 24, 0.15) 0 4px, transparent 9px),
     linear-gradient(150deg, #f7e6a8 0%, #eecf7f 100%);
   box-shadow:
     inset 4px 4px 0 rgba(255, 255, 255, 0.55),
@@ -345,6 +358,16 @@ body {
   100% { transform: translateZ(calc(var(--half) * -1)) rotateX(720deg) rotateY(900deg); }
 }
 .dice-cube.rolling { animation: cube-tumble 0.95s cubic-bezier(0.25, 0.7, 0.25, 1) forwards; }
+.bigdie.pristine .dice-cube.settled {
+  animation: cube-idle 12s linear infinite;
+}
+@keyframes cube-idle {
+  0% { transform: translateZ(calc(var(--half) * -1)) rotateX(-14deg) rotateY(16deg) scale(0.96); }
+  25% { transform: translateZ(calc(var(--half) * -1)) rotateX(76deg) rotateY(106deg) scale(1.04); }
+  50% { transform: translateZ(calc(var(--half) * -1)) rotateX(166deg) rotateY(196deg) scale(0.97); }
+  75% { transform: translateZ(calc(var(--half) * -1)) rotateX(256deg) rotateY(286deg) scale(1.05); }
+  100% { transform: translateZ(calc(var(--half) * -1)) rotateX(346deg) rotateY(376deg) scale(0.96); }
+}
 /* On settle we transition from the tumble's end pose to the resting pose above,
    which now points the landed face (--face-to-front) at the camera. */
 .dice-cube.landing { transition: transform 0.5s cubic-bezier(0.16, 0.78, 0.24, 1); }

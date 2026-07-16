@@ -277,7 +277,7 @@ function playRollAnimation(revealResults = false): void {
 function finishScoreSequence(): void {
   if (!scoreSequencePending) return;
   if (celebrateRoundWin) {
-    document.querySelector(".confetti")?.classList.add("active");
+    document.querySelector(".game")?.classList.add("win-celebrating");
     celebrationTimer = window.setTimeout(() => {
       celebrationTimer = null;
       scoreSequencePending = false;
@@ -706,17 +706,6 @@ function renderAnimToggle(): string {
             title="Toggle roll animation">🎲 ${activeAnim}</button>`;
 }
 
-function renderConfetti(): string {
-  const pieces = Array.from({ length: 72 }, (_, i) => {
-    const left = (i * 37) % 101;
-    const delay = (i * 29) % 420;
-    const drift = ((i * 53) % 240) - 120;
-    const spin = 360 + ((i * 71) % 720);
-    return `<i style="--x:${left}vw;--delay:${delay}ms;--drift:${drift}px;--spin:${spin}deg"></i>`;
-  }).join("");
-  return `<div class="confetti" aria-hidden="true">${pieces}</div>`;
-}
-
 function render(): void {
   const currentDice = state.dice.map((d, i) => renderDie(d, i)).join("");
   const secondaryDice = previousRollState
@@ -750,8 +739,7 @@ function render(): void {
     ${renderSetupOverlay()}
     ${renderRewardOverlay()}
     ${renderGameOverOverlay()}
-    ${renderInscribeOverlay()}
-    ${celebrateRoundWin ? renderConfetti() : ""}`;
+    ${renderInscribeOverlay()}`;
 }
 
 // ── Event handling (delegated) ────────────────────────────────────────────────

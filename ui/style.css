@@ -126,17 +126,27 @@ body {
 .stat-num { font-size: 28px; font-weight: 800; color: var(--gold); line-height: 1; }
 .stat-label { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); margin-top: 4px; }
 
-/* depleting resources as pips (rolls-left, rerolls) */
+/* Depleting resources as small 3D balls. */
 .pip-row { display: flex; gap: 8px; height: 28px; align-items: center; justify-content: center; flex-wrap: wrap; }
-.pip-dot { width: 16px; height: 16px; border-radius: 50%; transition: all 0.2s ease; }
+.pip-dot {
+  position: relative; width: 16px; height: 16px; border-radius: 50%;
+  transition: all 0.35s ease;
+}
+.pip-dot::before {
+  content: ""; position: absolute; width: 5px; height: 3px;
+  left: 3px; top: 3px; border-radius: 50%;
+  background: rgba(255,255,255,0.7); filter: blur(0.4px);
+}
 .pip-dot.live {
-  background: radial-gradient(circle at 35% 30%, #ffe38f, #f2c14e);
-  box-shadow: 0 0 8px rgba(242, 193, 78, 0.6), inset 0 -2px 2px rgba(0,0,0,0.25);
+  background: radial-gradient(circle at 32% 27%, #fff3bc 0 8%, #ffe38f 18%, #f2c14e 55%, #9b6816 100%);
+  box-shadow: 0 2px 3px rgba(0,0,0,0.55), 0 0 9px rgba(242, 193, 78, 0.62), inset -2px -3px 3px rgba(70,38,0,0.35);
 }
 .pip-dot.spent {
-  background: #2a1418; border: 2px solid var(--mult);
-  box-shadow: 0 0 8px rgba(224, 80, 58, 0.55);
+  background: radial-gradient(circle at 38% 34%, #5e2928, #2a1418 68%);
+  border: 2px solid var(--mult);
+  box-shadow: inset 2px 2px 3px rgba(0,0,0,0.55), 0 0 7px rgba(224, 80, 58, 0.48);
 }
+.pip-dot.spent::before { opacity: 0.18; }
 .stat.pips.warn { border-color: #d89a3a; box-shadow: 0 0 10px rgba(216, 154, 58, 0.35); }
 .stat.pips.warn .stat-label { color: #e6b25c; }
 .stat.pips.danger {
@@ -146,13 +156,13 @@ body {
 }
 .stat.pips.danger .stat-label { color: var(--mult); font-weight: 800; }
 .stat.pips.shake { animation: shake 0.32s ease; }
-.stat.pips.rolls-left.new-turn {
+.stat.pips.turns-left.new-turn {
   animation: rolls-new-turn-shine 1.2s ease-out;
 }
-.rolls-left .stat-label.counter-changing {
+.turns-left .stat-label.counter-changing {
   animation: rolls-counter-crossfade 1.2s ease-in-out;
 }
-.rolls-left .pip-dot.just-spent {
+.turns-left .pip-dot.just-spent {
   animation: roll-pip-spent 1.15s ease-out;
 }
 @keyframes rolls-new-turn-shine {
@@ -533,6 +543,16 @@ button.face:disabled { cursor: default; opacity: 0.7; }
 .modal.small { width: min(360px, 90vw); }
 .modal h2 { margin: 0 0 8px; }
 .modal p { color: var(--muted); margin: 6px 0 16px; }
+.next-target-preview {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 10px 0 18px; padding: 9px 14px;
+  background: var(--ink); border: 2px solid var(--line); border-radius: 10px;
+  color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+}
+.next-target-preview strong {
+  color: var(--mult); font-size: 26px; line-height: 1;
+  text-shadow: 0 0 10px rgba(224, 80, 58, 0.35);
+}
 .offers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .offer {
   position: relative; background: linear-gradient(180deg, #3a4570 0%, #2c355a 100%);

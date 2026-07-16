@@ -6,7 +6,7 @@
  * cosmetic flavor, labelled as such.
  *
  * Engine → UI mapping: Chips = sum + add · Mult = mult · Current/Target Score =
- * roundScore/targetScore · Rolls Left = turnsRemaining · Rerolls = turn.rerolls.
+ * roundScore/targetScore · Turns Left = turnsRemaining · Rolls = initial roll + rerolls.
  */
 
 import { createInitialState, reduce } from "../src/reducer.js";
@@ -18,7 +18,7 @@ const config: Config = {
   dice: { startingCount: 1, cap: 3 },
   reroll: { budget: 2 },
   cards: { slots: 3, offerCount: 3 },
-  targetForRound: (round) => 6 * round, // round 1 = 6, then +6 per round
+  targetForRound: (round) => 6 + (round - 1) * 9, // 6, 15, 24, 33, ...
   turnsPerRound: 4,
   rngStreams: ["dice", "rewards"],
   modifiers: cardRegistry,
@@ -292,7 +292,7 @@ function finishScoreSequence(): void {
 }
 
 function animateNewTurnRolls(previous: number, next: number): void {
-  const field = document.querySelector<HTMLElement>(".rolls-left");
+  const field = document.querySelector<HTMLElement>(".turns-left");
   const label = field?.querySelector<HTMLElement>(".stat-label");
   if (!field || !label) return;
 
@@ -301,10 +301,10 @@ function animateNewTurnRolls(previous: number, next: number): void {
     field.classList.remove("shake");
     field.classList.add("new-turn");
     field.querySelector<HTMLElement>(".pip-dot.spent")?.classList.add("just-spent");
-    label.textContent = `ROLLS LEFT ${previous}/${config.turnsPerRound}`;
+    label.textContent = `TURNS LEFT ${previous}/${config.turnsPerRound}`;
     label.classList.add("counter-changing");
     window.setTimeout(() => {
-      label.textContent = `ROLLS LEFT ${next}/${config.turnsPerRound}`;
+      label.textContent = `TURNS LEFT ${next}/${config.turnsPerRound}`;
     }, 600);
     window.setTimeout(() => {
       field.classList.remove("new-turn");
@@ -555,8 +555,8 @@ function renderInscribeRow(): string {
 /**
  * A depleting resource shown as a row of pips: `remaining` live (glowing) pips
  * out of `total`, the rest spent (red). The box escalates to a "warn" then a
- * "danger" state as it runs low, making the risk visible. Shared by rolls-left
- * and rerolls so both resources read the same way.
+ * "danger" state as it runs low, making the risk visible. Shared by turns and
+ * rolls so both resources read the same way.
  */
 function renderPipStat(
   label: string,
@@ -578,16 +578,17 @@ function renderPipStat(
     </div>`;
 }
 
-// Rolls left: last roll of the round is the danger moment (danger at 1, warn at 2).
-function renderRollsLeft(): string {
-  return renderPipStat("ROLLS LEFT", config.turnsPerRound, state.turnsRemaining, "rolls-left", 2, 1);
+// Turns left: the final hand of the round is the danger moment.
+function renderTurnsLeft(): string {
+  return renderPipStat("TURNS LEFT", config.turnsPerRound, state.turnsRemaining, "turns-left", 2, 1);
 }
 
-// Rerolls: full between turns; spending them all this turn is the danger (danger at 0, warn at 1).
-function renderRerolls(): string {
-  const budget = config.reroll.budget;
-  const remaining = state.turn ? state.turn.rerollsRemaining : budget;
-  return renderPipStat("REROLLS", budget, remaining, "rerolls", 1, 0);
+// Rolls include the initial throw plus the reroll budget. Starting a turn spends
+// the first ball; each reroll spends one more.
+function renderRolls(): string {
+  const total = config.reroll.budget + 1;
+  const remaining = state.turn ? state.turn.rerollsRemaining : total;
+  return renderPipStat("ROLLS", total, remaining, "rolls", 2, 1);
 }
 
 function renderStatBar(): string {
@@ -597,8 +598,8 @@ function renderStatBar(): string {
         <div class="stat-num">${state.round}</div>
         <div class="stat-label">ROUND</div>
       </div>
-      ${renderRollsLeft()}
-      ${renderRerolls()}
+      ${renderTurnsLeft()}
+      ${renderRolls()}
     </header>`;
 }
 
@@ -614,7 +615,7 @@ function renderActions(): string {
   const hint = midTurn
     ? rerolls > 0
       ? `Reroll, or score the hand`
-      : `Out of rerolls — scoring…`
+      : `Out of rolls — scoring…`
     : `Roll to start the turn`;
   return `
     <div class="actions">
@@ -696,6 +697,8 @@ function renderSetupOverlay(): string {
 
 function renderRewardOverlay(): string {
   if (state.phase !== "reward" || scoreSequencePending) return "";
+  const nextRound = state.round + 1;
+  const nextTarget = config.targetForRound(nextRound);
   const offers = state.rewardOffers
     .map((o, i) => {
       const id = o.modifierId ?? o.id;
@@ -734,6 +737,10 @@ function renderRewardOverlay(): string {
     <div class="overlay">
       <div class="modal">
         <h2> Round ${state.round} cleared!</h2>
+        <div class="next-target-preview">
+          <span>NEXT ROUND ${nextRound} TARGET</span>
+          <strong>${fmt(nextTarget)}</strong>
+        </div>
         ${cardBody}
         <div class="reward-inscribe">
           <p class="section-title">Add a face to your die</p>
@@ -823,6 +830,7 @@ app.addEventListener("click", (ev) => {
       rollResultsPending = true;
       dispatch({ type: "roll" });
       playRollAnimation(true);
+      document.querySelector(".rolls")?.classList.add("shake");
       break;
     case "reroll":
       previousRollState = state;
@@ -830,7 +838,7 @@ app.addEventListener("click", (ev) => {
       dispatch({ type: "reroll", held: [] });
       playRollAnimation(true);
       // Re-render just replaced the box; flash the fresh one to signal the burn.
-      document.querySelector(".rerolls")?.classList.add("shake");
+      document.querySelector(".rolls")?.classList.add("shake");
       // No rerolls left means there's nothing left to decide — after the roll
       // animation lands so the final face is visible, score the hand automatically.
       if (state.turn && state.turn.rerollsRemaining <= 0) {

@@ -164,6 +164,14 @@ describe("cards (modifier economy)", () => {
     expect(getScorePreview(turnShowing(state, 0))?.total).toBe(4);
   });
 
+  it("Dud Dividend gives a fixed chip payout for a blank roll", () => {
+    let state = createInitialState("seed-1", cardConfig);
+    state = reduce(state, { type: "inscribeFace", dieId: "die-0", faceIndex: 0, value: 4 });
+    state = { ...state, acquiredModifiers: ["dud-dividend"] };
+    expect(getScorePreview(turnShowing(state, 5))?.total).toBe(6);
+    expect(getScorePreview(turnShowing(state, 0))?.total).toBe(4);
+  });
+
   it("Clean Finish rewards a die only after every face is inscribed", () => {
     let state = createInitialState("seed-1", cardConfig);
     state = { ...state, acquiredModifiers: ["clean-finish"] };

@@ -136,6 +136,23 @@ const blankCheck: Modifier = {
   },
 };
 
+/** A fixed payout for landing on any dud, independent of die composition. */
+const dudDividend: Modifier = {
+  id: "dud-dividend",
+  name: "Dud Dividend",
+  description: "Roll a blank: +6 Chips.",
+  phase: "onScore",
+  apply: (ctx) => {
+    if (!ctx.faces.some((value) => value === null)) return ctx;
+    return addStep({ ...ctx, add: ctx.add + 6 }, {
+      source: "Dud Dividend",
+      kind: "add",
+      amount: 6,
+      note: "blank face payout",
+    });
+  },
+};
+
 /** A fully inscribed die earns a reliable late-game multiplier. */
 const cleanFinish: Modifier = {
   id: "clean-finish",
@@ -245,6 +262,7 @@ export const cardModifiers: readonly Modifier[] = [
   trips,
   underdog,
   blankCheck,
+  dudDividend,
   cleanFinish,
   carbonCopy,
   loneWolf,

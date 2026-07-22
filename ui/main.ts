@@ -99,6 +99,100 @@ let targetCountTimer: ReturnType<typeof setInterval> | null = null;
 let scoreSequencePending = false;
 let celebrateRoundWin = false;
 let celebrationTimer: ReturnType<typeof setTimeout> | null = null;
+let companionTimer: ReturnType<typeof setTimeout> | null = null;
+
+const EMPTY_REACTIONS = [
+  "I hate empty faces.",
+  "Your dice sucks.",
+  "I like numbers. Try rolling one.",
+  "A blank? Even zero brought more effort.",
+  "That face has all the personality of a wall.",
+];
+const SIX_REACTIONS = [
+  "Well... at least it's not blank...",
+  "Six is high, but you know I hate it.",
+  "Oh, six. How wonderfully predictable.",
+  "Great. Six pips I didn't ask for.",
+  "A six. Try not to look so proud.",
+  "Maximum value, minimum taste.",
+];
+const NUMBER_REACTIONS = [
+  (n: number) => `${n}. A number! We're learning.`,
+  (n: number) => `${n} pips. Better than an empty stare.`,
+  (n: number) => `A ${n}? I'll allow it.`,
+  (n: number) => `${n}. Not a six, but it has potential.`,
+  (n: number) => `The dice says ${n}. I say roll higher.`,
+  (n: number) => `${n} is respectable. Barely.`,
+];
+const STAMP_REACTIONS: Record<FaceValue, string[]> = {
+  1: [
+    "One, are you sure?",
+    "One is a very lonely choice.",
+    "Starting small. Very, very small.",
+  ],
+  2: [
+    "Two is romantic.",
+    "Two pips — now they have each other.",
+    "A pair. Cute. Disgusting, but cute.",
+  ],
+  3: [
+    "Three is a magic number.",
+    "Three has rhythm. I respect that.",
+    "Good things come in threes. Usually.",
+  ],
+  4: [
+    "Four is an even number, you know that, right?",
+    "Four. Stable, square, dependable.",
+    "Four corners, four pips, no surprises.",
+  ],
+  5: [
+    "Five is my favorite number.",
+    "Five has a perfect little center pip.",
+    "Excellent. Five looks good on this die.",
+  ],
+  6: [
+    "Of course you've chosen six. How original.",
+    "six six six, the number of the idiot!",
+    "Wonderful. Another six. Exactly what nobody needed.",
+    "The best face for the die, if you have no taste.",
+  ],
+};
+
+function pickLine(lines: string[]): string {
+  return lines[Math.floor(Math.random() * lines.length)] ?? lines[0] ?? "Hmm.";
+}
+
+function showCompanionLine(line: string): void {
+  const companion = document.querySelector<HTMLElement>(".wolf-companion");
+  const balloon = companion?.querySelector<HTMLElement>(".companion-speech");
+  if (!companion || !balloon) return;
+  if (companionTimer !== null) clearTimeout(companionTimer);
+  balloon.textContent = line;
+  companion.classList.remove("speaking");
+  void companion.offsetWidth;
+  companion.classList.add("speaking");
+  companionTimer = window.setTimeout(() => {
+    companionTimer = null;
+    companion.classList.remove("speaking");
+  }, 3600);
+}
+
+/** React once the committed roll is visible, prioritising blanks and sixes. */
+function showCompanionReaction(): void {
+  if (!state.turn) return;
+  const values = state.turn.roll.map((rolled) =>
+    state.dice.find((die) => die.id === rolled.dieId)?.faces[rolled.faceIndex]?.value ?? null,
+  );
+  let line: string;
+  if (values.includes(null)) line = pickLine(EMPTY_REACTIONS);
+  else if (values.includes(6)) line = pickLine(SIX_REACTIONS);
+  else {
+    const value = values[Math.floor(Math.random() * values.length)] ?? 1;
+    const reaction = NUMBER_REACTIONS[Math.floor(Math.random() * NUMBER_REACTIONS.length)] ?? NUMBER_REACTIONS[0]!;
+    line = reaction(value);
+  }
+  showCompanionLine(line);
+}
 
 // Variant "pip-flicker": the original. Dice flicker through random faces (with a
 // shake) for a short spell, then settle on the committed value.
@@ -238,6 +332,7 @@ function revealRollResults(): void {
   game?.classList.remove("roll-results-pending");
   game?.classList.add("roll-results-revealing");
   countUpHandPreview();
+  showCompanionReaction();
   window.setTimeout(() => {
     previousRollState = null;
   }, 280);
@@ -448,6 +543,9 @@ function playStampAnimation(): void {
       navigator.vibrate?.([32, 24, 18]);
     }, 1640);
   }
+  window.setTimeout(() => {
+    if (stamping) showCompanionLine(pickLine(STAMP_REACTIONS[stamping.value]));
+  }, reducedMotion ? 80 : 1640);
   stampTimer = window.setTimeout(() => {
     stampTimer = null;
     stamping = null;
@@ -882,6 +980,19 @@ function renderAnimToggle(): string {
             title="Toggle roll animation">🎲 ${activeAnim}</button>`;
 }
 
+function renderCompanion(): string {
+  const rewardClass = state.phase === "reward" && rewardScreenOpen ? " reward-companion" : "";
+  const portrait = ((state.round - 1) % 4) + 1;
+  return `
+    <aside class="wolf-companion${stamping ? " stamping-companion" : ""}${rewardClass}" aria-live="polite">
+      <div class="companion-speech" role="status"></div>
+      <div class="companion-portrait">
+        <img src="/assets/cachorro-egyptian-${portrait}.jpg" alt="Cachorro, a jackal companion in an ancient Egyptian painting style">
+      </div>
+      <span class="companion-name">CACHORRO</span>
+    </aside>`;
+}
+
 function render(): void {
   const currentDice = state.dice.map((d, i) => renderDie(d, i)).join("");
   const secondaryDice = previousRollState
@@ -898,6 +1009,7 @@ function render(): void {
        ${renderActions()}`;
   app.innerHTML = `
     ${renderAnimToggle()}
+    ${renderCompanion()}
     <div class="game${rollResultsPending ? " roll-results-pending" : ""}">
       <aside class="sidebar">
         <div class="logo">
@@ -951,11 +1063,6 @@ app.addEventListener("click", (ev) => {
       playRollAnimation(true);
       // Re-render just replaced the box; flash the fresh one to signal the burn.
       document.querySelector(".rolls")?.classList.add("shake");
-      // No rerolls left means there's nothing left to decide — after the roll
-      // animation lands so the final face is visible, score the hand automatically.
-      if (state.turn && state.turn.rerollsRemaining <= 0) {
-        window.setTimeout(scoreHand, 1050);
-      }
       break;
     case "lockin":
       scoreHand();

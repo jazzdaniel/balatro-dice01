@@ -8,6 +8,11 @@
   --gold: #f2c14e;
   --chips: #4a90e2;
   --mult: #e0503a;
+  /* Scoring-motion colors derived from the core tokens, softened against the
+     parchment text color so feedback glows without turning neon. */
+  --score-chips-soft: color-mix(in srgb, var(--chips) 48%, var(--text));
+  --score-mult-soft: color-mix(in srgb, var(--mult) 46%, var(--text));
+  --score-gold-soft: color-mix(in srgb, var(--gold) 58%, var(--text));
   --text: #f4f1e6;
   --muted: #9aa3bf;
   --slot: #232b45;
@@ -28,7 +33,7 @@ body {
   padding: 20px;
 }
 
-#app { width: 100%; max-width: 1100px; }
+#app { position: relative; width: 100%; max-width: 1100px; }
 
 .game {
   display: grid;
@@ -83,7 +88,8 @@ body {
   animation: modifier-trigger 0.16s linear var(--card-trigger-delay, 0ms) 7;
 }
 .mod.triggered .mod-badge {
-  box-shadow: 0 0 14px var(--gold);
+  background: var(--score-gold-soft);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--score-gold-soft) 42%, transparent);
 }
 @keyframes modifier-trigger {
   0%, 100% {
@@ -94,8 +100,8 @@ body {
   25% { transform: translate(-3px, 1px) rotate(-0.7deg); }
   50% {
     transform: translate(3px, -1px) rotate(0.7deg);
-    border-color: var(--gold);
-    box-shadow: 0 0 22px rgba(242, 193, 78, 0.85), inset 0 0 14px rgba(242, 193, 78, 0.16);
+    border-color: var(--score-gold-soft);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--score-gold-soft) 38%, transparent), inset 0 0 10px color-mix(in srgb, var(--score-gold-soft) 10%, transparent);
   }
   75% { transform: translate(-2px, -1px) rotate(-0.45deg); }
 }
@@ -199,11 +205,13 @@ body {
 .label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
 .target-num { font-size: 34px; font-weight: 800; color: var(--mult); line-height: 1.1; }
 .target-num.counting {
-  text-shadow: 0 0 12px currentColor;
+  color: var(--score-mult-soft);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--score-mult-soft) 45%, transparent);
 }
 .current-num { font-size: 34px; font-weight: 800; color: var(--gold); line-height: 1.1; }
 .current-num.counting, .hand.counting {
-  text-shadow: 0 0 12px currentColor;
+  color: var(--score-gold-soft);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--score-gold-soft) 42%, transparent);
 }
 .hand.sad-zero {
   animation: sad-zero-blink 0.38s ease-in-out 2;
@@ -212,9 +220,9 @@ body {
   0%, 100% { opacity: 1; transform: translateY(0) scale(1); }
   50% {
     opacity: 0.22;
-    color: var(--mult);
+    color: var(--score-mult-soft);
     transform: translateY(3px) scale(0.82);
-    text-shadow: 0 0 8px rgba(224, 80, 58, 0.45);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--score-mult-soft) 32%, transparent);
   }
 }
 
@@ -228,22 +236,22 @@ body {
   content: "✦  ·  ✦  ·  ✦";
   position: absolute; left: 50%; top: 50%; z-index: 4;
   width: 260px; text-align: center; pointer-events: none;
-  color: var(--gold); font-size: 24px; letter-spacing: 14px;
-  text-shadow: -55px 28px 0 var(--chips), 58px -25px 0 var(--mult);
+  color: var(--score-gold-soft); font-size: 24px; letter-spacing: 14px;
+  text-shadow: -55px 28px 0 var(--score-chips-soft), 58px -25px 0 var(--score-mult-soft);
   animation: win-spark-burst 0.72s ease-out 2;
 }
 .win-celebrating .currentbox::before { width: 190px; font-size: 18px; letter-spacing: 8px; }
 @keyframes win-die-pop {
   0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
-  45% { transform: translateY(-10px) scale(1.09); filter: brightness(1.2) drop-shadow(0 0 16px var(--gold)); }
+  45% { transform: translateY(-10px) scale(1.09); filter: brightness(1.08) drop-shadow(0 0 10px var(--score-gold-soft)); }
 }
 @keyframes win-score-box {
   0%, 100% { border-color: var(--line); box-shadow: none; }
-  50% { border-color: var(--gold); box-shadow: 0 0 24px rgba(242, 193, 78, 0.65), inset 0 0 18px rgba(242, 193, 78, 0.12); }
+  50% { border-color: var(--score-gold-soft); box-shadow: 0 0 16px color-mix(in srgb, var(--score-gold-soft) 34%, transparent), inset 0 0 12px color-mix(in srgb, var(--score-gold-soft) 9%, transparent); }
 }
 @keyframes win-score-number {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.22); text-shadow: 0 0 18px currentColor; }
+  50% { transform: scale(1.17); color: var(--score-gold-soft); text-shadow: 0 0 10px color-mix(in srgb, var(--score-gold-soft) 44%, transparent); }
 }
 @keyframes win-spark-burst {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); }
@@ -439,6 +447,74 @@ body {
   cursor: pointer; opacity: 0.85;
 }
 .anim-toggle:hover { opacity: 1; transform: translateY(-1px); }
+
+/* Scratch, the opinionated roll companion. His balloon is populated only once
+   the dice have landed, so he never spoils a result mid-tumble. */
+.wolf-companion {
+  position: absolute; z-index: 18; right: 18px; top: 142px;
+  width: 142px; pointer-events: none;
+  transform-origin: 70% 100%;
+}
+.wolf-companion.stamping-companion { z-index: 36; }
+.wolf-companion.reward-companion {
+  right: -160px; top: 142px;
+}
+.companion-portrait {
+  width: 128px; height: 128px; margin-left: auto; overflow: hidden;
+  border: 4px solid var(--gold); border-radius: 50%;
+  background: #0a1425; box-shadow: 0 7px 0 rgba(0,0,0,.38), 0 0 0 3px #293451;
+}
+.companion-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.companion-name {
+  position: absolute; right: 8px; bottom: -5px; padding: 3px 9px;
+  border: 2px solid #242b42; border-radius: 5px;
+  color: var(--ink); background: var(--gold); font-size: 10px; font-weight: 900; letter-spacing: 1.5px;
+}
+.companion-speech {
+  position: absolute; right: 82px; bottom: 105px; width: 210px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 13px 16px; box-sizing: border-box;
+  border: 3px solid #242b42; border-radius: 18px 18px 5px 18px;
+  color: var(--ink); background: #fff8df; box-shadow: 5px 6px 0 rgba(0,0,0,.32);
+  font-size: 14px; font-weight: 800; line-height: 1.25; text-align: center;
+  opacity: 0; transform: translate(12px, 10px) scale(.72); transform-origin: 100% 100%;
+}
+.companion-speech::after {
+  content: ""; position: absolute; right: -15px; bottom: -3px;
+  width: 25px; height: 24px; background: #fff8df;
+  border-right: 3px solid #242b42; border-bottom: 3px solid #242b42;
+  clip-path: polygon(0 0, 100% 100%, 18% 72%);
+}
+.wolf-companion.speaking { animation: companion-bob .42s ease-out; }
+.wolf-companion.speaking .companion-speech { animation: speech-pop 3.6s ease both; }
+@keyframes companion-bob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  38% { transform: translateY(-7px) rotate(-2deg); }
+  68% { transform: translateY(2px) rotate(1deg); }
+}
+@keyframes speech-pop {
+  0% { opacity: 0; transform: translate(12px,10px) scale(.72); }
+  8%, 86% { opacity: 1; transform: translate(0,0) scale(1); }
+  94% { opacity: 1; transform: translate(0,2px) scale(.98); }
+  100% { opacity: 0; transform: translate(8px,8px) scale(.78); }
+}
+@media (max-width: 760px) {
+  .wolf-companion {
+    position: fixed; right: 8px; top: auto; bottom: 8px;
+    transform: scale(.78); transform-origin: 100% 100%;
+  }
+}
+@media (min-width: 761px) and (max-width: 1420px) {
+  .wolf-companion.reward-companion {
+    position: fixed; right: 8px; top: auto; bottom: 8px;
+    transform: scale(.68); transform-origin: 100% 100%;
+  }
+  .wolf-companion.reward-companion .companion-speech { right: 72px; bottom: 108px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wolf-companion.speaking { animation: none; }
+  .wolf-companion.speaking .companion-speech { animation: speech-pop 3.6s linear both; }
+}
 
 /* ── Secondary die (faces breakdown, bottom-left of sidebar) ─ */
 .dice-secondary {

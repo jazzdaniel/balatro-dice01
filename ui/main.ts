@@ -601,7 +601,7 @@ function renderInscribeRow(): string {
       return `<div class="die"><div class="die-label">DIE ${dieIdx + 1}</div><div class="faces">${tiles}</div></div>`;
     })
     .join("");
-  const note = `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click a face to choose where (${pendingInscribes} to add). Overwriting is allowed.</p>`;
+  const note = `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click.</p>`;
   const skip = `<button class="btn skip" data-act="skip-face">Skip — no face ${kbd("Z")}</button>`;
   return `<div class="inscribe-section">${dice}${note}${skip}</div>`;
 }
@@ -756,7 +756,7 @@ function renderSetupOverlay(): string {
     <div class="overlay"> 
       <div class="modal">
         <h2>YOUR DICE IS EMPTY!</h2>
-        <p>chose your first face, loser.</p>
+        <p>chose your first face to stamp, loser.</p>
         ${renderInscribeRow()}
         <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")} ${kbd("R")}</button>
       </div>

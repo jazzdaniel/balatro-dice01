@@ -302,6 +302,7 @@ body {
   cursor: pointer;
   transition: transform 0.1s ease;
   image-rendering: pixelated;
+  position: relative;
 }
 .bigdie:hover:not(:disabled):not(.rolling) { transform: translateY(-4px); }
 .bigdie:active:not(:disabled) { transform: translateY(2px); }
@@ -602,3 +603,211 @@ button.face:disabled { cursor: default; opacity: 0.7; }
   font-size: 26px; font-weight: 800; cursor: pointer;
 }
 .ins-val:hover { border-color: var(--gold); transform: translateY(-2px); }
+
+/* Inscription ceremony: reuse the real cube, stop its idle turn, and bring a
+   chunky steel punch down onto the selected physical face. */
+.stamp-overlay { z-index: 30; background: rgba(8, 11, 22, 0.9); }
+.stamp-modal { width: min(440px, 94vw); text-align: center; }
+.stamp-kicker, .stamp-status {
+  margin: 0; color: var(--gold); font-size: 12px; font-weight: 800;
+  letter-spacing: 2.5px; text-transform: uppercase;
+}
+.stamp-stage {
+  position: relative; width: 280px; height: 300px; margin: 8px auto 2px;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.stamp-stage::after {
+  content: ""; position: absolute; z-index: 3; inset: 72px 18px 32px;
+  border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,255,255,.9) 0 4%, rgba(242,193,78,.34) 18%, transparent 58%);
+}
+.stamp-die.bigdie {
+  position: relative; width: 180px; height: 180px; padding: 16px;
+  margin-bottom: 12px; overflow: visible; cursor: default;
+  transition: none;
+}
+.stamp-cube {
+  --cube: 124px; --half: 62px;
+  --face-to-front: var(--stamp-face);
+  transform: translateZ(calc(var(--half) * -1)) rotateX(-8deg) rotateY(10deg) var(--stamp-face);
+  animation: none !important;
+}
+.stamp-cube .bigpip { width: 24px; height: 24px; }
+.stamp-target-face > .pip-grid { opacity: 0; }
+.stamp-reveal {
+  position: absolute; inset: 10px; z-index: 2; opacity: 0;
+  transform: scale(1.45); filter: blur(3px);
+}
+.stamp-reveal > .pip-grid { width: 100%; height: 100%; }
+.stamp-tool {
+  position: absolute; z-index: 5; top: -116px; left: 50%; width: 104px;
+  transform: translateX(-50%); filter: drop-shadow(0 12px 8px rgba(0,0,0,0.42));
+}
+.stamp-handle {
+  width: 34px; height: 128px; margin: 0 auto;
+  border: 4px solid #352416; border-radius: 10px 10px 4px 4px;
+  background: linear-gradient(90deg, #744326, #bc7441 45%, #60351f);
+  box-shadow: inset 5px 0 rgba(255,255,255,0.14), inset -5px 0 rgba(0,0,0,0.22);
+}
+.stamp-head {
+  height: 54px; display: flex; align-items: center; justify-content: center;
+  border: 4px solid #252936; border-radius: 7px;
+  color: #242735; background: linear-gradient(145deg, #dce2e5, #707b82 58%, #40474d);
+  box-shadow: inset 4px 4px rgba(255,255,255,0.35), inset -5px -5px rgba(0,0,0,0.3);
+}
+.stamp-head span { font-size: 30px; font-weight: 900; transform: scaleY(-1); opacity: 0.72; }
+.stamp-impact {
+  position: absolute; z-index: 4; left: 50%; bottom: 94px; width: 32px; height: 32px;
+  border: 4px solid var(--gold); border-radius: 50%; opacity: 0;
+  transform: translateX(-50%) scale(0.2); pointer-events: none;
+}
+.stamp-sparks {
+  position: absolute; z-index: 8; left: 50%; bottom: 99px;
+  width: 1px; height: 1px; pointer-events: none;
+}
+.stamp-sparks i {
+  --spark-x: 0px; --spark-y: -50px; --spark-r: 0deg;
+  position: absolute; width: 5px; height: 16px; border-radius: 50%; opacity: 0;
+  background: linear-gradient(#fff8b0, #ffb21c 48%, #ed4d19);
+  box-shadow: 0 0 7px 2px rgba(255,137,20,.8);
+  transform-origin: 50% 100%;
+}
+.stamp-sparks i:nth-child(1) { --spark-x: -92px; --spark-y: -42px; --spark-r: -72deg; }
+.stamp-sparks i:nth-child(2) { --spark-x: -70px; --spark-y: -78px; --spark-r: -48deg; }
+.stamp-sparks i:nth-child(3) { --spark-x: -38px; --spark-y: -103px; --spark-r: -26deg; }
+.stamp-sparks i:nth-child(4) { --spark-x: -12px; --spark-y: -120px; --spark-r: -8deg; }
+.stamp-sparks i:nth-child(5) { --spark-x: 20px; --spark-y: -112px; --spark-r: 14deg; }
+.stamp-sparks i:nth-child(6) { --spark-x: 52px; --spark-y: -94px; --spark-r: 34deg; }
+.stamp-sparks i:nth-child(7) { --spark-x: 86px; --spark-y: -58px; --spark-r: 62deg; }
+.stamp-sparks i:nth-child(8) { --spark-x: 104px; --spark-y: -22px; --spark-r: 78deg; }
+.stamp-sparks i:nth-child(9) { --spark-x: -108px; --spark-y: -12px; --spark-r: -82deg; }
+.stamp-sparks i:nth-child(10) { --spark-x: 2px; --spark-y: -136px; --spark-r: 2deg; }
+.stamp-sparks i:nth-child(11) { --spark-x: -132px; --spark-y: -68px; --spark-r: -66deg; }
+.stamp-sparks i:nth-child(12) { --spark-x: -112px; --spark-y: -108px; --spark-r: -52deg; }
+.stamp-sparks i:nth-child(13) { --spark-x: -64px; --spark-y: -142px; --spark-r: -30deg; }
+.stamp-sparks i:nth-child(14) { --spark-x: -26px; --spark-y: -158px; --spark-r: -12deg; }
+.stamp-sparks i:nth-child(15) { --spark-x: 36px; --spark-y: -150px; --spark-r: 16deg; }
+.stamp-sparks i:nth-child(16) { --spark-x: 74px; --spark-y: -132px; --spark-r: 34deg; }
+.stamp-sparks i:nth-child(17) { --spark-x: 118px; --spark-y: -102px; --spark-r: 54deg; }
+.stamp-sparks i:nth-child(18) { --spark-x: 138px; --spark-y: -54px; --spark-r: 70deg; }
+.stamp-sparks i:nth-child(19) { --spark-x: -142px; --spark-y: -28px; --spark-r: -78deg; }
+.stamp-sparks i:nth-child(20) { --spark-x: 146px; --spark-y: -18px; --spark-r: 82deg; }
+.stamp-smoke {
+  position: absolute; z-index: 6; left: 50%; bottom: 82px;
+  width: 220px; height: 130px; transform: translateX(-50%);
+  pointer-events: none;
+}
+.stamp-smoke i {
+  position: absolute; left: 50%; bottom: 8px; width: 28px; height: 28px;
+  border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(238,232,213,.82) 0 28%, rgba(151,153,151,.5) 48%, transparent 72%);
+  filter: blur(2px);
+}
+.stamp-smoke i:nth-child(1) { --smoke-x: -58px; --smoke-y: -54px; animation-delay: 1.66s; }
+.stamp-smoke i:nth-child(2) { --smoke-x: -24px; --smoke-y: -78px; animation-delay: 1.72s; }
+.stamp-smoke i:nth-child(3) { --smoke-x: 28px; --smoke-y: -70px; animation-delay: 1.68s; }
+.stamp-smoke i:nth-child(4) { --smoke-x: 58px; --smoke-y: -46px; animation-delay: 1.76s; }
+.stamp-smoke i:nth-child(5) { --smoke-x: -76px; --smoke-y: -92px; animation-delay: 1.78s; }
+.stamp-smoke i:nth-child(6) { --smoke-x: -42px; --smoke-y: -116px; animation-delay: 1.7s; }
+.stamp-smoke i:nth-child(7) { --smoke-x: 4px; --smoke-y: -126px; animation-delay: 1.82s; }
+.stamp-smoke i:nth-child(8) { --smoke-x: 46px; --smoke-y: -108px; animation-delay: 1.74s; }
+.stamp-smoke i:nth-child(9) { --smoke-x: 78px; --smoke-y: -82px; animation-delay: 1.86s; }
+.stamp-smoke i:nth-child(10) { --smoke-x: -98px; --smoke-y: -62px; animation-delay: 1.7s; }
+.stamp-smoke i:nth-child(11) { --smoke-x: -86px; --smoke-y: -124px; animation-delay: 1.82s; }
+.stamp-smoke i:nth-child(12) { --smoke-x: -18px; --smoke-y: -146px; animation-delay: 1.9s; }
+.stamp-smoke i:nth-child(13) { --smoke-x: 22px; --smoke-y: -152px; animation-delay: 1.76s; }
+.stamp-smoke i:nth-child(14) { --smoke-x: 72px; --smoke-y: -132px; animation-delay: 1.88s; }
+.stamp-smoke i:nth-child(15) { --smoke-x: 104px; --smoke-y: -68px; animation-delay: 1.74s; }
+.stamp-smoke i:nth-child(16) { --smoke-x: 2px; --smoke-y: -104px; animation-delay: 2s; }
+.stamp-smoke i:nth-child(17) { --smoke-x: -118px; --smoke-y: -88px; animation-delay: 1.68s; }
+.stamp-smoke i:nth-child(18) { --smoke-x: -104px; --smoke-y: -142px; animation-delay: 1.78s; }
+.stamp-smoke i:nth-child(19) { --smoke-x: -66px; --smoke-y: -166px; animation-delay: 1.9s; }
+.stamp-smoke i:nth-child(20) { --smoke-x: -30px; --smoke-y: -184px; animation-delay: 1.72s; }
+.stamp-smoke i:nth-child(21) { --smoke-x: 20px; --smoke-y: -190px; animation-delay: 1.86s; }
+.stamp-smoke i:nth-child(22) { --smoke-x: 62px; --smoke-y: -172px; animation-delay: 1.74s; }
+.stamp-smoke i:nth-child(23) { --smoke-x: 102px; --smoke-y: -146px; animation-delay: 1.92s; }
+.stamp-smoke i:nth-child(24) { --smoke-x: 122px; --smoke-y: -94px; animation-delay: 1.8s; }
+.stamp-stage.stamping { animation: stamp-stage-shudder .34s 1.62s cubic-bezier(.2,.8,.3,1) both; }
+.stamp-stage.stamping::after { animation: stamp-contact-flash .36s 1.62s ease-out forwards; }
+.stamp-stage.stamping .stamp-cube { animation: stamp-cube-present 1s cubic-bezier(.25,.7,.25,1) both !important; }
+.stamp-stage.stamping .stamp-tool { animation: stamp-drop 1.35s 1s cubic-bezier(.65,.02,.72,.35) both; }
+.stamp-stage.stamping .stamp-die { animation: stamp-die-hit 1.18s 1.62s ease-out both; }
+.stamp-stage.stamping .stamp-impact { animation: stamp-impact-ring 0.5s 1.64s ease-out forwards; }
+.stamp-stage.stamping .stamp-sparks i { animation: stamp-spark-burst .72s 1.63s cubic-bezier(.18,.72,.35,1) both; }
+.stamp-stage.stamping .stamp-sparks i:nth-child(2n) { animation-delay: 1.67s; }
+.stamp-stage.stamping .stamp-sparks i:nth-child(n+11) {
+  width: 3px; height: 11px; animation-delay: 1.7s; animation-duration: .9s;
+}
+.stamp-stage.stamping .stamp-reveal { animation: stamp-number-reveal 0.42s 1.64s cubic-bezier(.18,.82,.28,1.2) both; }
+.stamp-stage.stamping .stamp-smoke i { animation-name: stamp-smoke-rise; animation-duration: 1.5s; animation-timing-function: ease-out; animation-fill-mode: both; }
+.stamp-stage.stamping + .stamp-status { animation: stamp-status-flash 0.7s 1.62s ease-out both; }
+@keyframes stamp-cube-present {
+  0% { transform: translateZ(calc(var(--half) * -1)) rotateX(0deg) rotateY(0deg) scale(.96); }
+  72% { transform: translateZ(calc(var(--half) * -1)) rotateX(360deg) rotateY(450deg) scale(1.03); }
+  86% { transform: translateZ(calc(var(--half) * -1)) rotateX(346deg) rotateY(376deg) var(--stamp-face) scale(.99); }
+  100% { transform: translateZ(calc(var(--half) * -1)) rotateX(-8deg) rotateY(10deg) var(--stamp-face) scale(1); }
+}
+@keyframes stamp-drop {
+  0%, 30% { transform: translateX(-50%) translateY(0); }
+  52% { transform: translateX(-50%) translateY(162px); }
+  56% { transform: translateX(-50%) translateY(166px) scaleY(.96); }
+  63% { transform: translateX(-50%) translateY(142px); }
+  78%, 100% { transform: translateX(-50%) translateY(-12px); }
+}
+@keyframes stamp-die-hit {
+  0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  12% { transform: translateY(11px) scale(.94, .86); filter: brightness(1.55) saturate(1.2); }
+  28% { transform: translateY(-7px) scale(1.06, 1.08); filter: brightness(1.18); }
+  48% { transform: translateY(3px) scale(.99, .97); }
+  62% { transform: translate(-2px, -1px) scale(1.012); }
+  70% { transform: translate(2px, 1px) rotate(.5deg); }
+  78% { transform: translate(-1.5px, 0) rotate(-.4deg); }
+  86% { transform: translate(1px, .5px) rotate(.25deg); }
+  94% { transform: translate(-.5px, 0) rotate(-.12deg); }
+}
+@keyframes stamp-stage-shudder {
+  0%, 100% { translate: 0 0; }
+  18% { translate: -5px 3px; }
+  36% { translate: 4px -2px; }
+  54% { translate: -3px 1px; }
+  72% { translate: 2px 0; }
+}
+@keyframes stamp-contact-flash {
+  0% { opacity: .95; transform: scale(.22); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes stamp-spark-burst {
+  0% { opacity: 0; transform: translate(0,0) rotate(var(--spark-r)) scale(.3); }
+  10% { opacity: 1; }
+  68% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--spark-x), var(--spark-y)) rotate(var(--spark-r)) scale(.75); }
+}
+@keyframes stamp-impact-ring {
+  0% { opacity: 1; transform: translateX(-50%) scale(.2); }
+  100% { opacity: 0; transform: translateX(-50%) scale(5.5); }
+}
+@keyframes stamp-number-reveal {
+  0% { opacity: 0; transform: scale(1.45); filter: blur(3px); }
+  48% { opacity: 1; transform: scale(.88); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+@keyframes stamp-smoke-rise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(.35); }
+  18% { opacity: .9; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--smoke-x)), var(--smoke-y)) scale(1.8); }
+}
+@keyframes stamp-status-flash {
+  0%, 100% { color: var(--gold); transform: scale(1); }
+  35% { color: #fff; transform: scale(1.16); text-shadow: 0 0 18px var(--gold); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stamp-stage.stamping { animation: none; }
+  .stamp-stage.stamping::after { animation: none; }
+  .stamp-stage.stamping .stamp-cube { animation: none !important; }
+  .stamp-stage.stamping .stamp-tool { animation: none; transform: translateX(-50%) translateY(150px); }
+  .stamp-stage.stamping .stamp-die { animation: none; filter: brightness(1.2); }
+  .stamp-stage.stamping .stamp-impact { animation: none; }
+  .stamp-stage.stamping .stamp-sparks { display: none; }
+  .stamp-stage.stamping .stamp-reveal { animation: none; opacity: 1; transform: none; filter: none; }
+  .stamp-stage.stamping .stamp-smoke { display: none; }
+}

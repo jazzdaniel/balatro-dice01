@@ -50,6 +50,14 @@ let rewardScreenOpen = false;
  * during a round, so faces are only ever added between rounds.
  */
 let pendingInscribes = 1;
+type StampAnimationState = {
+  dieId: string;
+  faceIndex: number;
+  value: FaceValue;
+  previousFaces: (number | null)[];
+};
+let stamping: StampAnimationState | null = null;
+let stampTimer: ReturnType<typeof setTimeout> | null = null;
 
 const app = document.getElementById("app")!;
 
@@ -411,8 +419,40 @@ const OFFER_KEYS = ["A", "S", "D"];
 /** Spend one pending inscribe on a specific face. Shared by click and keyboard. */
 function applyInscribe(dieId: string, faceIndex: number, value: FaceValue): void {
   inscribing = null;
+  const die = state.dice.find((candidate) => candidate.id === dieId);
+  stamping = {
+    dieId,
+    faceIndex,
+    value,
+    previousFaces: die?.faces.map((face) => face.value) ?? Array(6).fill(null),
+  };
   pendingInscribes = Math.max(0, pendingInscribes - 1);
   dispatch({ type: "inscribeFace", dieId, faceIndex, value });
+  playStampAnimation();
+}
+
+/** Hold the inscription screen through the impact, then reveal the finished die. */
+function playStampAnimation(): void {
+  if (stampTimer !== null) clearTimeout(stampTimer);
+  const stage = document.querySelector<HTMLElement>(".stamp-stage");
+  if (!stage) {
+    stamping = null;
+    render();
+    return;
+  }
+  requestAnimationFrame(() => stage.classList.add("stamping"));
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reducedMotion) {
+    window.setTimeout(() => {
+      // A tiny haptic knock on supported phones/controllers makes contact feel physical.
+      navigator.vibrate?.([32, 24, 18]);
+    }, 1640);
+  }
+  stampTimer = window.setTimeout(() => {
+    stampTimer = null;
+    stamping = null;
+    render();
+  }, reducedMotion ? 350 :3850);
 }
 
 /** The face a bare number key should stamp: the first blank one, else the very
@@ -563,7 +603,7 @@ function renderInscribeRow(): string {
     .join("");
   const note = `<p class="muted">Press ${kbd("1")}–${kbd("6")} to stamp the next face, or click a face to choose where (${pendingInscribes} to add). Overwriting is allowed.</p>`;
   const skip = `<button class="btn skip" data-act="skip-face">Skip — no face ${kbd("Z")}</button>`;
-  return `<div class="inscribe-section">${note}${dice}${skip}</div>`;
+  return `<div class="inscribe-section">${dice}${note}${skip}</div>`;
 }
 
 /**
@@ -691,6 +731,7 @@ function renderScorePanel(): string {
 }
 
 function renderInscribeOverlay(): string {
+  if (stamping) return renderStampOverlay(stamping);
   if (!inscribing) return "";
   const values: FaceValue[] = [1, 2, 3, 4, 5, 6];
   const btns = values
@@ -712,10 +753,10 @@ function renderSetupOverlay(): string {
   if (started) return "";
   const canStart = faceSkipped || pendingInscribes <= 0;
   return `
-    <div class="overlay">
+    <div class="overlay"> 
       <div class="modal">
-        <h2>Build your die</h2>
-        <p>Your die begins with a single inscribed face. Choose it, or skip to start with a blank die.</p>
+        <h2>YOUR DICE IS EMPTY!</h2>
+        <p>chose your first face, loser.</p>
         ${renderInscribeRow()}
         <button class="btn continue" data-act="start-run" ${canStart ? "" : "disabled"}>Start Run ${kbd("↵")} ${kbd("R")}</button>
       </div>
@@ -774,6 +815,50 @@ function renderRewardScreen(): string {
         </div>
         <button class="btn continue" data-act="next-round" ${canContinue ? "" : "disabled"}>Continue ${kbd("↵")} ${kbd("R")}</button>
       </div>`;
+}
+
+/** The chosen physical face is held toward the camera while a steel die stamps it. */
+function renderStampOverlay(stamp: StampAnimationState): string {
+  const die = state.dice.find((candidate) => candidate.id === stamp.dieId);
+  if (!die) return "";
+  const front = SIDE_TO_FRONT[stamp.faceIndex] ?? SIDE_TO_FRONT[0]!;
+  // The receiving face begins clean even when overwriting. Its new pips are a
+  // separate layer, revealed precisely when the punch makes contact.
+  const sides = CUBE_SIDES.map((cls, i) => {
+    const value = i === stamp.faceIndex ? null : stamp.previousFaces[i] ?? null;
+    const reveal = i === stamp.faceIndex
+      ? `<div class="stamp-reveal">${renderPips(stamp.value)}</div>`
+      : "";
+    return `<div class="cube-face ${cls}${i === stamp.faceIndex ? " stamp-target-face" : ""}">${renderPips(value)}${reveal}</div>`;
+  }).join("");
+  return `
+    <div class="overlay stamp-overlay" aria-live="polite">
+      <div class="stamp-modal">
+        <p class="stamp-kicker">INSCRIBING FACE ${stamp.faceIndex + 1}</p>
+        <div class="stamp-stage" style="--stamp-face:${front}">
+          <div class="stamp-tool" aria-hidden="true">
+            <div class="stamp-handle"></div>
+            <div class="stamp-head"><span>${stamp.value}</span></div>
+          </div>
+          <div class="stamp-impact" aria-hidden="true"></div>
+          <div class="stamp-sparks" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="stamp-smoke" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="stamp-die bigdie cube-active">
+            <div class="bigdie-face cube-mode">
+              <div class="dice-cube stamp-cube">${sides}</div>
+            </div>
+          </div>
+        </div>
+        <p class="stamp-status">STAMPING ${stamp.value}</p>
+      </div>
+    </div>`;
 }
 
 function renderGameOverOverlay(): string {
